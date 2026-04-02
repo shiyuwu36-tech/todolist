@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import {
   createTask,
   deleteTask,
@@ -29,11 +29,20 @@ const form = reactive({
   dueDateValue: null, // timestamp(ms)
 });
 
+const searchInput = ref("");
 const searchQuery = ref("");
 const dateFilterValue = ref(null); // timestamp(ms)
 const dateFilterMode = ref("all"); // all | on | next7
 
 const allowedTypes = ["application/pdf", "text/plain"];
+let searchTimer = null;
+
+watch(searchInput, (val) => {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    searchQuery.value = val;
+  }, 300);
+});
 
 const resetForm = () => {
   editingId.value = null;
@@ -41,6 +50,13 @@ const resetForm = () => {
   form.description = "";
   form.status = "todo";
   form.dueDateValue = null;
+};
+
+const clearFilters = () => {
+  searchInput.value = "";
+  searchQuery.value = "";
+  dateFilterMode.value = "all";
+  dateFilterValue.value = null;
 };
 
 const openCreate = () => {
@@ -234,8 +250,8 @@ onMounted(loadTasks);
     <div class="mx-auto flex max-w-6xl flex-col gap-4 p-6">
       <header class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p class="text-sm text-gray-500">本地任务管理 / SQLite 持久化</p>
-          <h1 class="text-2xl font-semibold">三列看板</h1>
+          <p class="text-sm text-gray-500">本地可用 · 自动保存 · 支持附件</p>
+          <h1 class="text-2xl font-semibold">任务看板 TodoList</h1>
         </div>
         <button
           class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
@@ -246,26 +262,20 @@ onMounted(loadTasks);
       </header>
 
       <section class="rounded-lg border bg-white p-4 shadow-sm">
-        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div class="flex items-center gap-2 sm:col-span-2">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex min-w-[240px] flex-1 items-center gap-2">
             <input
-              v-model="searchQuery"
+              v-model="searchInput"
               type="search"
-              class="flex-1 rounded border px-3 py-2 text-sm"
+              class="w-full rounded border px-3 py-2 text-sm"
               placeholder="搜索标题或描述"
             />
-            <button
-              class="rounded border px-3 py-2 text-sm"
-              @click="searchQuery = ''"
-            >
-              清空
-            </button>
           </div>
           <div class="flex items-center gap-2">
             <span class="text-sm text-gray-600">到期过滤</span>
             <select
               v-model="dateFilterMode"
-              class="flex-1 rounded border px-3 py-2 text-sm"
+              class="rounded border px-3 py-2 text-sm"
             >
               <option value="all">全部</option>
               <option value="on">选定日期</option>
@@ -278,10 +288,16 @@ onMounted(loadTasks);
               v-model:value="dateFilterValue"
               type="date"
               clearable
-              class="w-full"
+              class="w-44"
               placeholder="选择日期"
             />
           </div>
+          <button
+            class="rounded-lg border px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            @click="clearFilters"
+          >
+            清空筛选
+          </button>
         </div>
       </section>
 
@@ -306,16 +322,16 @@ onMounted(loadTasks);
         <div
           v-for="status in ['todo', 'doing', 'done']"
           :key="status"
-          class="flex flex-col gap-3 rounded-lg border bg-white p-4 shadow-sm"
+          class="flex flex-col gap-3 rounded-xl border bg-white p-4 shadow-sm"
         >
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="text-base font-semibold">{{
                 status === "todo"
-                  ? "Todo"
+                  ? "待办"
                   : status === "doing"
-                    ? "Doing"
-                    : "Done"
+                    ? "进行中"
+                    : "已完成"
               }}</span>
               <span
                 class="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600"
@@ -325,29 +341,28 @@ onMounted(loadTasks);
           </div>
           <div
             v-if="!columns[status].length"
-            class="rounded border border-dashed px-3 py-4 text-center text-sm text-gray-500"
+            class="rounded-lg border border-dashed bg-gray-50 px-3 py-4 text-center text-sm text-gray-500"
           >
-            此列暂无任务
+            此列暂无任务，可将任务切换到此状态
           </div>
           <article
             v-for="task in columns[status]"
             :key="task.id"
-            class="rounded-lg border px-3 py-3 text-sm shadow-sm"
+            class="rounded-lg border bg-white px-3 py-3 text-sm shadow-sm"
           >
-            <div class="flex items-start justify-between gap-2">
-              <div class="min-w-0">
-                <h2 class="break-words text-base font-semibold">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0 space-y-1">
+                <h2 class="break-words text-base font-semibold text-gray-900">
                   {{ task.title }}
                 </h2>
-                <p v-if="task.description" class="mt-1 text-gray-600">
+                <p v-if="task.description" class="text-gray-600">
                   {{ task.description }}
                 </p>
-                <p class="mt-1 text-xs text-gray-500">
-                  创建于 {{ formatDateTime(task.createdAt) }}
-                </p>
-                <p class="mt-1 text-xs text-gray-500">
-                  截止：{{ formatDateTime(task.dueDate) }}
-                </p>
+                <div class="text-xs text-gray-500 space-y-0.5">
+                  <p>创建：{{ formatDateTime(task.createdAt) }}</p>
+                  <p>截止：{{ formatDateTime(task.dueDate) }}</p>
+                  <p>附件：{{ task.attachmentCount }}</p>
+                </div>
               </div>
               <select
                 class="rounded border px-2 py-1 text-xs"
@@ -356,22 +371,35 @@ onMounted(loadTasks);
               >
                 <option value="todo">待办</option>
                 <option value="doing">进行中</option>
-                <option value="done">完成</option>
+                <option value="done">已完成</option>
               </select>
             </div>
-            <div class="mt-2 flex flex-wrap gap-3 text-xs text-blue-600">
-              <button @click="openEdit(task)">编辑</button>
-              <button class="text-red-600" @click="removeTask(task)">
+            <div class="mt-3 flex flex-wrap gap-2 text-xs">
+              <button
+                class="rounded bg-blue-50 px-3 py-1 text-blue-700"
+                @click="openEdit(task)"
+              >
+                编辑
+              </button>
+              <button
+                class="rounded bg-red-50 px-3 py-1 text-red-700"
+                @click="removeTask(task)"
+              >
                 删除
               </button>
-              <button @click="() => ensureAttachmentsLoaded(task.id)">
+              <button
+                class="rounded bg-gray-100 px-3 py-1 text-gray-700"
+                @click="() => ensureAttachmentsLoaded(task.id)"
+              >
                 附件 ({{ task.attachmentCount }})
               </button>
             </div>
             <div class="mt-2 rounded border bg-gray-50 p-2">
               <div class="flex items-center justify-between text-xs">
-                <span class="font-medium">附件</span>
-                <label class="cursor-pointer text-blue-600">
+                <span class="font-medium text-gray-700">附件</span>
+                <label
+                  class="cursor-pointer rounded bg-blue-50 px-2 py-1 text-blue-700"
+                >
                   上传
                   <input
                     type="file"
@@ -388,7 +416,7 @@ onMounted(loadTasks);
               </div>
               <ul
                 v-else-if="attachments[task.id]?.items?.length"
-                class="mt-1 flex flex-col gap-1"
+                class="mt-2 flex flex-col gap-1"
               >
                 <li
                   v-for="att in attachments[task.id].items"
@@ -448,7 +476,7 @@ onMounted(loadTasks);
             <select v-model="form.status" class="rounded border px-3 py-2">
               <option value="todo">待办</option>
               <option value="doing">进行中</option>
-              <option value="done">完成</option>
+              <option value="done">已完成</option>
             </select>
           </label>
           <label class="flex flex-col gap-1">
