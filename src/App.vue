@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import {
   createTask,
   deleteTask,
@@ -9,7 +9,7 @@ import {
   updateTask,
   uploadAttachment,
 } from "./apiClient";
-import { createDiscreteApi } from "naive-ui";
+import { createDiscreteApi, NDatePicker } from "naive-ui";
 
 const { message } = createDiscreteApi(["message"]);
 
@@ -26,14 +26,12 @@ const form = reactive({
   title: "",
   description: "",
   status: "todo",
-  dueDate: "",
+  dueDateValue: null, // timestamp(ms)
 });
 
-const statusOptions = [
-  { label: "待办", value: "todo" },
-  { label: "进行中", value: "doing" },
-  { label: "完成", value: "done" },
-];
+const searchQuery = ref("");
+const dateFilterValue = ref(null); // timestamp(ms)
+const dateFilterMode = ref("all"); // all | on | next7
 
 const allowedTypes = ["application/pdf", "text/plain"];
 
@@ -42,7 +40,7 @@ const resetForm = () => {
   form.title = "";
   form.description = "";
   form.status = "todo";
-  form.dueDate = "";
+  form.dueDateValue = null;
 };
 
 const openCreate = () => {
@@ -55,7 +53,7 @@ const openEdit = (task) => {
   form.title = task.title;
   form.description = task.description || "";
   form.status = task.status;
-  form.dueDate = task.dueDate || "";
+  form.dueDateValue = task.dueDate ? Date.parse(task.dueDate) : null;
   formVisible.value = true;
 };
 
@@ -72,6 +70,22 @@ const loadTasks = async () => {
   }
 };
 
+const toIsoString = (ts) => (ts ? new Date(ts).toISOString() : null);
+const formatDateTime = (iso) => {
+  if (!iso) return "未设置";
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  } catch (e) {
+    return iso;
+  }
+};
+
 const saveTask = async () => {
   if (!form.title.trim()) {
     message.error("标题必填");
@@ -83,7 +97,7 @@ const saveTask = async () => {
       title: form.title,
       description: form.description,
       status: form.status,
-      dueDate: form.dueDate || null,
+      dueDate: toIsoString(form.dueDateValue),
     };
     if (editingId.value) {
       await updateTask(editingId.value, payload);
@@ -170,16 +184,58 @@ const handleDownload = async (attachment) => {
   }
 };
 
+const matchesSearch = (task) => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return true;
+  const text = `${task.title || ""} ${task.description || ""}`.toLowerCase();
+  return text.includes(q);
+};
+
+const matchesDateFilter = (task) => {
+  const mode = dateFilterMode.value;
+  if (mode === "all") return true;
+  const targetTs = dateFilterValue.value;
+  const due = task.dueDate ? Date.parse(task.dueDate) : null;
+  if (!due) return false;
+  if (mode === "on") {
+    if (!targetTs) return true;
+    const d = new Date(due);
+    const t = new Date(targetTs);
+    return (
+      d.getFullYear() === t.getFullYear() &&
+      d.getMonth() === t.getMonth() &&
+      d.getDate() === t.getDate()
+    );
+  }
+  if (mode === "next7") {
+    const now = new Date();
+    const end = new Date();
+    end.setDate(now.getDate() + 7);
+    return due >= now.getTime() && due <= end.getTime();
+  }
+  return true;
+};
+
+const filteredTasks = computed(() =>
+  tasks.value.filter((t) => matchesSearch(t) && matchesDateFilter(t)),
+);
+
+const columns = computed(() => ({
+  todo: filteredTasks.value.filter((t) => t.status === "todo"),
+  doing: filteredTasks.value.filter((t) => t.status === "doing"),
+  done: filteredTasks.value.filter((t) => t.status === "done"),
+}));
+
 onMounted(loadTasks);
 </script>
 
 <template>
   <div class="min-h-screen bg-gray-50 text-gray-900">
-    <div class="mx-auto flex max-w-5xl flex-col gap-4 p-6">
-      <header class="flex items-center justify-between gap-3">
+    <div class="mx-auto flex max-w-6xl flex-col gap-4 p-6">
+      <header class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p class="text-sm text-gray-500">本地任务管理 / SQLite 持久化</p>
-          <h1 class="text-2xl font-semibold">任务列表</h1>
+          <h1 class="text-2xl font-semibold">三列看板</h1>
         </div>
         <button
           class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
@@ -188,6 +244,46 @@ onMounted(loadTasks);
           新建任务
         </button>
       </header>
+
+      <section class="rounded-lg border bg-white p-4 shadow-sm">
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="flex items-center gap-2 sm:col-span-2">
+            <input
+              v-model="searchQuery"
+              type="search"
+              class="flex-1 rounded border px-3 py-2 text-sm"
+              placeholder="搜索标题或描述"
+            />
+            <button
+              class="rounded border px-3 py-2 text-sm"
+              @click="searchQuery = ''"
+            >
+              清空
+            </button>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-600">到期过滤</span>
+            <select
+              v-model="dateFilterMode"
+              class="flex-1 rounded border px-3 py-2 text-sm"
+            >
+              <option value="all">全部</option>
+              <option value="on">选定日期</option>
+              <option value="next7">未来7天</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-600">日期</span>
+            <n-date-picker
+              v-model:value="dateFilterValue"
+              type="date"
+              clearable
+              class="w-full"
+              placeholder="选择日期"
+            />
+          </div>
+        </div>
+      </section>
 
       <section
         v-if="errorMsg"
@@ -206,43 +302,55 @@ onMounted(loadTasks);
         加载中…
       </section>
 
-      <section
-        v-else-if="!tasks.length"
-        class="rounded-lg border bg-white px-6 py-10 text-center text-gray-500"
-      >
-        <p>还没有任务，点击“新建任务”开始吧。</p>
-      </section>
-
-      <section v-else class="flex flex-col gap-3">
-        <article
-          v-for="task in tasks"
-          :key="task.id"
-          class="rounded-lg border bg-white p-4 shadow-sm"
+      <section v-else class="grid gap-4 lg:grid-cols-3">
+        <div
+          v-for="status in ['todo', 'doing', 'done']"
+          :key="status"
+          class="flex flex-col gap-3 rounded-lg border bg-white p-4 shadow-sm"
         >
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <span
-                  class="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-700"
-                  >{{ task.status }}</span
-                >
-                <span v-if="task.dueDate" class="text-xs text-gray-500"
-                  >截止：{{ task.dueDate }}</span
-                >
-              </div>
-              <h2 class="mt-1 break-words text-lg font-semibold">
-                {{ task.title }}
-              </h2>
-              <p v-if="task.description" class="mt-1 text-sm text-gray-600">
-                {{ task.description }}
-              </p>
-              <p class="mt-1 text-xs text-gray-400">
-                创建于 {{ task.createdAt }}
-              </p>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-base font-semibold">{{
+                status === "todo"
+                  ? "Todo"
+                  : status === "doing"
+                    ? "Doing"
+                    : "Done"
+              }}</span>
+              <span
+                class="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600"
+                >{{ columns[status].length }}</span
+              >
             </div>
-            <div class="flex flex-col items-end gap-2 text-sm">
+          </div>
+          <div
+            v-if="!columns[status].length"
+            class="rounded border border-dashed px-3 py-4 text-center text-sm text-gray-500"
+          >
+            此列暂无任务
+          </div>
+          <article
+            v-for="task in columns[status]"
+            :key="task.id"
+            class="rounded-lg border px-3 py-3 text-sm shadow-sm"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <h2 class="break-words text-base font-semibold">
+                  {{ task.title }}
+                </h2>
+                <p v-if="task.description" class="mt-1 text-gray-600">
+                  {{ task.description }}
+                </p>
+                <p class="mt-1 text-xs text-gray-500">
+                  创建于 {{ formatDateTime(task.createdAt) }}
+                </p>
+                <p class="mt-1 text-xs text-gray-500">
+                  截止：{{ formatDateTime(task.dueDate) }}
+                </p>
+              </div>
               <select
-                class="rounded border px-2 py-1 text-sm"
+                class="rounded border px-2 py-1 text-xs"
                 :value="task.status"
                 @change="(e) => changeStatus(task, e.target.value)"
               >
@@ -250,69 +358,62 @@ onMounted(loadTasks);
                 <option value="doing">进行中</option>
                 <option value="done">完成</option>
               </select>
-              <div class="flex gap-2">
-                <button class="text-blue-600" @click="openEdit(task)">
-                  编辑
-                </button>
-                <button class="text-red-600" @click="removeTask(task)">
-                  删除
-                </button>
+            </div>
+            <div class="mt-2 flex flex-wrap gap-3 text-xs text-blue-600">
+              <button @click="openEdit(task)">编辑</button>
+              <button class="text-red-600" @click="removeTask(task)">
+                删除
+              </button>
+              <button @click="() => ensureAttachmentsLoaded(task.id)">
+                附件 ({{ task.attachmentCount }})
+              </button>
+            </div>
+            <div class="mt-2 rounded border bg-gray-50 p-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-medium">附件</span>
+                <label class="cursor-pointer text-blue-600">
+                  上传
+                  <input
+                    type="file"
+                    class="hidden"
+                    @change="(e) => handleUpload(task.id, e)"
+                  />
+                </label>
               </div>
-            </div>
-          </div>
-
-          <div class="mt-3 flex flex-col gap-2 border-t pt-3 text-sm">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span class="font-medium"
-                  >附件（{{ task.attachmentCount }}）</span
-                >
-                <button
-                  class="text-blue-600"
-                  @click="ensureAttachmentsLoaded(task.id)"
-                >
-                  查看
-                </button>
-              </div>
-              <label class="cursor-pointer text-blue-600">
-                上传
-                <input
-                  type="file"
-                  class="hidden"
-                  @change="(e) => handleUpload(task.id, e)"
-                />
-              </label>
-            </div>
-            <div v-if="attachments[task.id]?.loading" class="text-gray-500">
-              附件加载中…
-            </div>
-            <ul
-              v-else-if="attachments[task.id]?.items?.length"
-              class="flex flex-col gap-1"
-            >
-              <li
-                v-for="att in attachments[task.id].items"
-                :key="att.id"
-                class="flex items-center justify-between rounded border px-2 py-1"
+              <div
+                v-if="attachments[task.id]?.loading"
+                class="mt-1 text-gray-500"
               >
-                <div class="flex flex-col">
-                  <span class="font-medium">{{ att.originalName }}</span>
-                  <span class="text-xs text-gray-500"
-                    >{{ att.mimeType }} ·
-                    {{ (att.size / 1024).toFixed(1) }} KB</span
-                  >
-                </div>
-                <button
-                  class="text-blue-600"
-                  @click="() => handleDownload(att)"
+                附件加载中…
+              </div>
+              <ul
+                v-else-if="attachments[task.id]?.items?.length"
+                class="mt-1 flex flex-col gap-1"
+              >
+                <li
+                  v-for="att in attachments[task.id].items"
+                  :key="att.id"
+                  class="flex items-center justify-between rounded border bg-white px-2 py-1"
                 >
-                  下载
-                </button>
-              </li>
-            </ul>
-            <div v-else class="text-gray-500">暂无附件</div>
-          </div>
-        </article>
+                  <div class="flex flex-col">
+                    <span class="font-medium">{{ att.originalName }}</span>
+                    <span class="text-[11px] text-gray-500"
+                      >{{ att.mimeType }} ·
+                      {{ (att.size / 1024).toFixed(1) }} KB</span
+                    >
+                  </div>
+                  <button
+                    class="text-blue-600"
+                    @click="() => handleDownload(att)"
+                  >
+                    下载
+                  </button>
+                </li>
+              </ul>
+              <div v-else class="mt-1 text-gray-500">暂无附件</div>
+            </div>
+          </article>
+        </div>
       </section>
     </div>
 
@@ -351,11 +452,12 @@ onMounted(loadTasks);
             </select>
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-gray-700">截止时间 (ISO)</span>
-            <input
-              v-model="form.dueDate"
-              class="rounded border px-3 py-2"
-              placeholder="2024-12-31T12:00:00Z"
+            <span class="text-gray-700">截止时间</span>
+            <n-date-picker
+              v-model:value="form.dueDateValue"
+              type="datetime"
+              clearable
+              placeholder="选择时间"
             />
           </label>
         </div>
