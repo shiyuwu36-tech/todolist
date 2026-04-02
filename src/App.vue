@@ -9,7 +9,7 @@ import {
   updateTask,
   uploadAttachment,
 } from "./apiClient";
-import { createDiscreteApi, NDatePicker } from "naive-ui";
+import { createDiscreteApi, NDatePicker, NPopover } from "naive-ui";
 
 const { message } = createDiscreteApi(["message"]);
 
@@ -36,7 +36,7 @@ const dateFilterValue = ref(null);
 const dateFilterMode = ref("all");
 const priorityFilter = ref("all");
 const prioritySort = ref("desc"); // 默认高->低
-const showMoreFilters = ref(false);
+const moreFiltersOpen = ref(false);
 
 const allowedTypes = ["application/pdf", "text/plain"];
 let searchTimer = null;
@@ -57,14 +57,35 @@ const resetForm = () => {
   form.dueDateValue = null;
 };
 
+const resetSort = () => {
+  prioritySort.value = "desc";
+};
+
 const clearFilters = () => {
   searchInput.value = "";
   searchQuery.value = "";
   dateFilterMode.value = "all";
   dateFilterValue.value = null;
   priorityFilter.value = "all";
-  prioritySort.value = "desc";
-  showMoreFilters.value = false;
+  resetSort();
+  moreFiltersOpen.value = false;
+};
+
+const clearDateFilter = () => {
+  dateFilterMode.value = "all";
+  dateFilterValue.value = null;
+};
+
+const clearPriorityFilter = () => {
+  priorityFilter.value = "all";
+};
+
+const clearSearch = () => {
+  searchInput.value = "";
+  searchQuery.value = "";
+  clearDateFilter();
+  clearPriorityFilter();
+  resetSort();
 };
 
 const openCreate = () => {
@@ -88,6 +109,12 @@ const loadTasks = async () => {
   try {
     const res = await getTasks();
     tasks.value = res.items || [];
+    const ids = new Set(tasks.value.map((t) => t.id));
+    Object.keys(attachments).forEach((key) => {
+      if (!ids.has(key)) {
+        delete attachments[key];
+      }
+    });
   } catch (e) {
     errorMsg.value = e.message || "加载失败";
   } finally {
@@ -165,7 +192,12 @@ const changeStatus = async (task, status) => {
 
 const ensureAttachmentsLoaded = async (taskId) => {
   if (attachments[taskId]?.loaded) return;
-  attachments[taskId] = { items: [], loading: true, loaded: false };
+  attachments[taskId] = {
+    ...(attachments[taskId] || {}),
+    items: [],
+    loading: true,
+    loaded: false,
+  };
   try {
     const res = await listAttachments(taskId);
     attachments[taskId].items = res.items || [];
@@ -175,6 +207,21 @@ const ensureAttachmentsLoaded = async (taskId) => {
   } finally {
     attachments[taskId].loading = false;
   }
+};
+
+const loadVisibleAttachments = async (list) => {
+  const tasksWithAtt = list.filter((t) => t.attachmentCount > 0);
+  for (const t of tasksWithAtt) {
+    if (!attachments[t.id]?.loaded) {
+      await ensureAttachmentsLoaded(t.id);
+    }
+  }
+  const tasksWithoutAtt = list.filter((t) => t.attachmentCount === 0);
+  tasksWithoutAtt.forEach((t) => {
+    if (!attachments[t.id]) {
+      attachments[t.id] = { items: [], loading: false, loaded: true };
+    }
+  });
 };
 
 const handleUpload = async (taskId, event) => {
@@ -289,6 +336,29 @@ const priorityTheme = {
   low: "bg-emerald-100 text-emerald-800",
 };
 
+const formattedDateFilter = computed(() => {
+  if (dateFilterMode.value === "all") return "";
+  if (dateFilterMode.value === "next7") return "未来7天";
+  if (dateFilterMode.value === "on" && dateFilterValue.value) {
+    return new Intl.DateTimeFormat(undefined, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(dateFilterValue.value));
+  }
+  return "选定日期";
+});
+
+const hasActiveChips = computed(() => {
+  return (
+    searchQuery.value.trim() ||
+    dateFilterMode.value !== "all" ||
+    dateFilterValue.value ||
+    priorityFilter.value !== "all" ||
+    prioritySort.value !== "desc"
+  );
+});
+
 const dueTone = (iso) => {
   if (!iso) return "";
   const now = Date.now();
@@ -299,6 +369,14 @@ const dueTone = (iso) => {
   if (diff < 24 * 60 * 60 * 1000) return "text-amber-600";
   return "text-gray-600";
 };
+
+watch(
+  () => filteredTasks.value,
+  async (list) => {
+    await loadVisibleAttachments(list);
+  },
+  { immediate: true },
+);
 
 onMounted(loadTasks);
 </script>
@@ -337,10 +415,10 @@ onMounted(loadTasks);
       </header>
 
       <section
-        class="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur"
+        class="rounded-2xl border border-slate-200 bg-white/85 p-4 shadow-sm backdrop-blur"
       >
-        <div class="flex flex-wrap items-center gap-3">
-          <div class="flex min-w-[220px] flex-1 items-center gap-2">
+        <div class="relative z-20 flex flex-wrap items-center gap-3">
+          <div class="flex min-w-[240px] flex-1 items-center gap-2">
             <span class="text-slate-400">🔍</span>
             <input
               v-model="searchInput"
@@ -350,7 +428,7 @@ onMounted(loadTasks);
             />
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-600">到期过滤</span>
+            <span class="text-sm text-gray-600">到期</span>
             <select
               v-model="dateFilterMode"
               class="rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
@@ -376,40 +454,96 @@ onMounted(loadTasks);
           >
             清空筛选
           </button>
-          <button
-            class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-gray-700 shadow hover:bg-slate-50"
-            @click="showMoreFilters = !showMoreFilters"
+          <n-popover
+            trigger="click"
+            placement="bottom-end"
+            :show="moreFiltersOpen"
+            :z-index="3500"
+            :width="260"
+            to="body"
+            @update:show="(val) => (moreFiltersOpen = val)"
           >
-            {{ showMoreFilters ? "收起更多" : "更多筛选" }}
-          </button>
+            <template #trigger>
+              <button
+                class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-gray-700 shadow hover:bg-slate-50"
+              >
+                更多筛选
+              </button>
+            </template>
+            <div class="flex flex-col gap-3 text-sm">
+              <label class="flex flex-col gap-1">
+                <span class="text-gray-700">优先级</span>
+                <select
+                  v-model="priorityFilter"
+                  class="rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
+                >
+                  <option value="all">全部</option>
+                  <option value="high">高</option>
+                  <option value="medium">中</option>
+                  <option value="low">低</option>
+                </select>
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-gray-700">排序</span>
+                <select
+                  v-model="prioritySort"
+                  class="rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
+                >
+                  <option value="desc">高 → 低</option>
+                  <option value="asc">低 → 高</option>
+                </select>
+              </label>
+              <div class="flex justify-end gap-2 text-xs">
+                <button
+                  class="rounded-lg px-3 py-1 text-gray-600 hover:bg-slate-100"
+                  @click="clearPriorityFilter"
+                >
+                  重置优先级
+                </button>
+                <button
+                  class="rounded-lg px-3 py-1 text-gray-600 hover:bg-slate-100"
+                  @click="resetSort"
+                >
+                  恢复排序默认
+                </button>
+              </div>
+            </div>
+          </n-popover>
         </div>
 
         <div
-          v-if="showMoreFilters"
-          class="mt-3 grid gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:grid-cols-2"
+          v-if="hasActiveChips"
+          class="mt-3 flex flex-wrap items-center gap-2 text-xs"
         >
-          <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-600">优先级</span>
-            <select
-              v-model="priorityFilter"
-              class="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
-            >
-              <option value="all">全部</option>
-              <option value="high">高</option>
-              <option value="medium">中</option>
-              <option value="low">低</option>
-            </select>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-600">排序</span>
-            <select
-              v-model="prioritySort"
-              class="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
-            >
-              <option value="desc">高 → 低</option>
-              <option value="asc">低 → 高</option>
-            </select>
-          </div>
+          <span class="text-gray-500">已应用：</span>
+          <button
+            v-if="searchQuery.trim()"
+            class="flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-gray-700 shadow-sm hover:bg-slate-200"
+            @click="clearSearch"
+          >
+            🔍 {{ searchQuery }} ×
+          </button>
+          <button
+            v-if="dateFilterMode !== 'all' || dateFilterValue"
+            class="flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-gray-700 shadow-sm hover:bg-slate-200"
+            @click="clearDateFilter"
+          >
+            📅 {{ formattedDateFilter }} ×
+          </button>
+          <button
+            v-if="priorityFilter !== 'all'"
+            class="flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-gray-700 shadow-sm hover:bg-slate-200"
+            @click="clearPriorityFilter"
+          >
+            ⭐ 优先级：{{ priorityFilter }} ×
+          </button>
+          <button
+            v-if="prioritySort !== 'desc'"
+            class="flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-gray-700 shadow-sm hover:bg-slate-200"
+            @click="resetSort"
+          >
+            ↕ 排序：低→高 ×
+          </button>
         </div>
       </section>
 
@@ -434,11 +568,11 @@ onMounted(loadTasks);
         <div
           v-for="status in ['todo', 'doing', 'done']"
           :key="status"
-          class="flex flex-col gap-3 rounded-2xl border border-black/5 p-4 shadow-sm min-h-[520px]"
+          class="relative flex flex-col gap-3 rounded-2xl border border-black/5 p-4 shadow-sm min-h-[520px] lg:max-h-[calc(100vh-240px)] lg:overflow-hidden"
           :class="statusTheme[status].column"
         >
           <div
-            class="flex items-center justify-between rounded-xl bg-white/85 px-3 py-2 shadow-sm ring-1 ring-white/50"
+            class="sticky top-0 z-10 flex items-center justify-between rounded-xl bg-white/85 px-3 py-2 shadow-sm ring-1 ring-white/50 backdrop-blur"
           >
             <div class="flex items-center gap-2">
               <span class="text-base font-semibold text-gray-900">{{
@@ -460,161 +594,182 @@ onMounted(loadTasks);
             v-if="!columns[status].length"
             class="rounded-xl border border-dashed border-slate-200 bg-white/70 px-3 py-4 text-center text-sm text-gray-600 shadow-inner"
           >
-            此列暂无任务，可将任务切换到此状态或新建
+            <span v-if="status === 'todo'"
+              >此列暂无任务，点击右上角「新建任务」开始。</span
+            >
+            <span v-else>可通过任务卡右上角状态切换移入此列。</span>
           </div>
 
-          <article
-            v-for="task in columns[status]"
-            :key="task.id"
-            class="rounded-xl border border-slate-100 bg-white/85 p-3 text-sm shadow transition duration-150 hover:-translate-y-0.5 hover:shadow-md backdrop-blur-sm"
-          >
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0 space-y-1">
-                <div class="flex flex-wrap items-center gap-2">
-                  <span
-                    class="rounded-full px-2 py-1 text-xs font-semibold"
-                    :class="statusTheme[task.status]?.tag"
-                  >
-                    {{
-                      task.status === "todo"
-                        ? "待办"
-                        : task.status === "doing"
-                          ? "进行中"
-                          : "已完成"
-                    }}
-                  </span>
-                  <span
-                    class="rounded-full px-2 py-1 text-xs font-semibold"
-                    :class="
-                      priorityTheme[task.priority] ||
-                      'bg-slate-100 text-slate-700'
-                    "
-                  >
-                    {{
-                      task.priority === "high"
-                        ? "高优先级"
-                        : task.priority === "low"
-                          ? "低优先级"
-                          : "中优先级"
-                    }}
-                  </span>
-                  <span class="text-xs text-gray-500"
-                    >#{{ task.id.slice(0, 6) }}</span
-                  >
-                </div>
-                <h2 class="break-words text-lg font-semibold text-gray-900">
-                  {{ task.title }}
-                </h2>
-                <p v-if="task.description" class="text-gray-600">
-                  {{ task.description }}
-                </p>
-              </div>
-              <select
-                class="rounded-md border border-slate-200 px-2 py-1 text-xs text-gray-700"
-                :value="task.status"
-                @change="(e) => changeStatus(task, e.target.value)"
-              >
-                <option value="todo">待办</option>
-                <option value="doing">进行中</option>
-                <option value="done">已完成</option>
-              </select>
-            </div>
-
-            <div class="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
-              <span
-                class="flex items-center gap-1 rounded bg-slate-100 px-2 py-1"
-                ><span>📅</span
-                ><span :class="dueTone(task.dueDate)"
-                  >截止：{{ formatDateTime(task.dueDate) }}</span
-                ></span
-              >
-              <span
-                class="flex items-center gap-1 rounded bg-slate-100 px-2 py-1"
-                >🕒 创建：{{ formatDateTime(task.createdAt) }}</span
-              >
-            </div>
-
-            <div class="mt-3 flex flex-wrap gap-2 text-xs">
-              <div class="flex flex-wrap gap-2">
-                <button
-                  class="flex items-center gap-1 rounded-md bg-blue-50 px-3 py-1 font-medium text-blue-700 hover:bg-blue-100"
-                  @click="openEdit(task)"
-                >
-                  ✏️ 编辑
-                </button>
-                <button
-                  class="flex items-center gap-1 rounded-md bg-red-50 px-3 py-1 font-medium text-red-700 hover:bg-red-100"
-                  @click="removeTask(task)"
-                >
-                  🗑 删除
-                </button>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  class="flex items-center gap-1 rounded-md bg-slate-100 px-3 py-1 font-medium text-gray-700 hover:bg-slate-200"
-                  @click="() => ensureAttachmentsLoaded(task.id)"
-                >
-                  📂 附件 ({{ task.attachmentCount }})
-                </button>
-                <label
-                  class="flex cursor-pointer items-center gap-1 rounded-md bg-emerald-50 px-3 py-1 font-medium text-emerald-700 hover:bg-emerald-100"
-                >
-                  ⬆️ 上传
-                  <input
-                    type="file"
-                    class="hidden"
-                    @change="(e) => handleUpload(task.id, e)"
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div
-              class="mt-2 rounded-lg border border-slate-100 bg-slate-50 p-2"
+          <div class="flex flex-col gap-3 lg:overflow-y-auto lg:pr-1">
+            <article
+              v-for="task in columns[status]"
+              :key="task.id"
+              class="rounded-xl border border-slate-100 bg-white/85 p-3 text-sm shadow transition duration-200 hover:-translate-y-0.5 hover:shadow-lg backdrop-blur-sm"
             >
-              <div
-                class="flex items-center justify-between text-xs text-gray-700"
-              >
-                <span class="font-semibold">附件列表</span>
-                <span class="text-gray-500"
-                  >{{ attachments[task.id]?.items?.length || 0 }} 个</span
-                >
-              </div>
-              <div
-                v-if="attachments[task.id]?.loading"
-                class="mt-1 text-gray-500"
-              >
-                附件加载中…
-              </div>
-              <ul
-                v-else-if="attachments[task.id]?.items?.length"
-                class="mt-2 flex flex-col gap-1"
-              >
-                <li
-                  v-for="att in attachments[task.id].items"
-                  :key="att.id"
-                  class="flex items-center justify-between rounded border border-slate-100 bg-white px-2 py-1"
-                >
-                  <div class="flex flex-col">
-                    <span class="font-medium text-gray-800">{{
-                      att.originalName
-                    }}</span>
-                    <span class="text-[11px] text-gray-500"
-                      >{{ att.mimeType }} ·
-                      {{ (att.size / 1024).toFixed(1) }} KB</span
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 space-y-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span
+                      class="rounded-full px-2 py-1 text-xs font-semibold"
+                      :class="statusTheme[task.status]?.tag"
+                    >
+                      {{
+                        task.status === "todo"
+                          ? "待办"
+                          : task.status === "doing"
+                            ? "进行中"
+                            : "已完成"
+                      }}
+                    </span>
+                    <span
+                      class="rounded-full px-2 py-1 text-xs font-semibold"
+                      :class="
+                        priorityTheme[task.priority] ||
+                        'bg-slate-100 text-slate-700'
+                      "
+                    >
+                      {{
+                        task.priority === "high"
+                          ? "高优先级"
+                          : task.priority === "low"
+                            ? "低优先级"
+                            : "中优先级"
+                      }}
+                    </span>
+                    <span class="text-xs text-gray-500"
+                      >#{{ task.id.slice(0, 6) }}</span
                     >
                   </div>
-                  <button
-                    class="text-blue-600"
-                    @click="() => handleDownload(att)"
+                  <h2 class="break-words text-lg font-semibold text-gray-900">
+                    {{ task.title }}
+                  </h2>
+                  <p
+                    v-if="task.description"
+                    class="text-gray-600"
+                    style="
+                      display: -webkit-box;
+                      -webkit-line-clamp: 2;
+                      -webkit-box-orient: vertical;
+                      overflow: hidden;
+                    "
                   >
-                    下载
+                    {{ task.description }}
+                  </p>
+                </div>
+                <select
+                  class="rounded-md border border-slate-200 px-2 py-1 text-xs text-gray-700"
+                  :value="task.status"
+                  @change="(e) => changeStatus(task, e.target.value)"
+                >
+                  <option value="todo">待办</option>
+                  <option value="doing">进行中</option>
+                  <option value="done">已完成</option>
+                </select>
+              </div>
+
+              <div class="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
+                <span
+                  class="flex items-center gap-1 rounded bg-slate-100 px-2 py-1"
+                  ><span>📅</span
+                  ><span :class="dueTone(task.dueDate)"
+                    >截止：{{ formatDateTime(task.dueDate) }}</span
+                  ></span
+                >
+                <span
+                  class="flex items-center gap-1 rounded bg-slate-100 px-2 py-1"
+                  >🕒 创建：{{ formatDateTime(task.createdAt) }}</span
+                >
+              </div>
+
+              <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    class="flex items-center gap-1 rounded-md bg-blue-50 px-3 py-1 font-medium text-blue-700 hover:bg-blue-100"
+                    @click="openEdit(task)"
+                  >
+                    ✏️ 编辑
                   </button>
-                </li>
-              </ul>
-              <div v-else class="mt-1 text-gray-500">暂无附件</div>
-            </div>
-          </article>
+                  <button
+                    class="flex items-center gap-1 rounded-md bg-red-50 px-3 py-1 font-medium text-red-700 hover:bg-red-100"
+                    @click="removeTask(task)"
+                  >
+                    🗑 删除
+                  </button>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <div
+                    class="flex items-center gap-1 rounded-md bg-slate-100 px-3 py-1 font-medium text-gray-700"
+                    aria-hidden="true"
+                  >
+                    📂 附件
+                    <span class="font-semibold">{{
+                      task.attachmentCount
+                    }}</span>
+                  </div>
+                  <label
+                    class="flex cursor-pointer items-center gap-1 rounded-md bg-emerald-50 px-3 py-1 font-medium text-emerald-700 hover:bg-emerald-100"
+                  >
+                    ⬆️ 上传
+                    <input
+                      type="file"
+                      class="hidden"
+                      @change="(e) => handleUpload(task.id, e)"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div
+                class="mt-2 rounded-lg border border-slate-100 bg-slate-50 p-2"
+              >
+                <div
+                  class="flex items-center justify-between text-xs text-gray-700"
+                >
+                  <span class="font-semibold">附件列表</span>
+                  <span class="text-gray-500">
+                    {{
+                      attachments[task.id]?.items?.length ??
+                      task.attachmentCount
+                    }}
+                    个
+                  </span>
+                </div>
+                <div
+                  v-if="attachments[task.id]?.loading"
+                  class="mt-1 text-gray-500"
+                >
+                  附件加载中…
+                </div>
+                <ul
+                  v-else-if="attachments[task.id]?.items?.length"
+                  class="mt-2 flex flex-col gap-1"
+                >
+                  <li
+                    v-for="att in attachments[task.id].items"
+                    :key="att.id"
+                    class="flex items-center justify-between rounded border border-slate-100 bg-white px-2 py-1"
+                  >
+                    <div class="flex flex-col">
+                      <span class="font-medium text-gray-800">{{
+                        att.originalName
+                      }}</span>
+                      <span class="text-[11px] text-gray-500"
+                        >{{ att.mimeType }} ·
+                        {{ (att.size / 1024).toFixed(1) }} KB</span
+                      >
+                    </div>
+                    <button
+                      class="text-blue-600"
+                      @click="() => handleDownload(att)"
+                    >
+                      下载
+                    </button>
+                  </li>
+                </ul>
+                <div v-else class="mt-1 text-gray-500">暂无附件</div>
+              </div>
+            </article>
+          </div>
         </div>
       </section>
     </div>
