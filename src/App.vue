@@ -26,6 +26,7 @@ const form = reactive({
   title: "",
   description: "",
   status: "todo",
+  priority: "medium",
   dueDateValue: null,
 });
 
@@ -33,6 +34,9 @@ const searchInput = ref("");
 const searchQuery = ref("");
 const dateFilterValue = ref(null);
 const dateFilterMode = ref("all");
+const priorityFilter = ref("all");
+const prioritySort = ref("desc"); // 默认高->低
+const showMoreFilters = ref(false);
 
 const allowedTypes = ["application/pdf", "text/plain"];
 let searchTimer = null;
@@ -49,6 +53,7 @@ const resetForm = () => {
   form.title = "";
   form.description = "";
   form.status = "todo";
+  form.priority = "medium";
   form.dueDateValue = null;
 };
 
@@ -57,6 +62,9 @@ const clearFilters = () => {
   searchQuery.value = "";
   dateFilterMode.value = "all";
   dateFilterValue.value = null;
+  priorityFilter.value = "all";
+  prioritySort.value = "desc";
+  showMoreFilters.value = false;
 };
 
 const openCreate = () => {
@@ -69,6 +77,7 @@ const openEdit = (task) => {
   form.title = task.title;
   form.description = task.description || "";
   form.status = task.status;
+  form.priority = task.priority || "medium";
   form.dueDateValue = task.dueDate ? Date.parse(task.dueDate) : null;
   formVisible.value = true;
 };
@@ -113,6 +122,7 @@ const saveTask = async () => {
       title: form.title,
       description: form.description,
       status: form.status,
+      priority: form.priority,
       dueDate: toIsoString(form.dueDateValue),
     };
     if (editingId.value) {
@@ -145,7 +155,7 @@ const removeTask = async (task) => {
 
 const changeStatus = async (task, status) => {
   try {
-    await updateTask(task.id, { ...task, status });
+    await updateTask(task.id, { ...task, status, priority: task.priority });
     message.success("状态已更新");
     await loadTasks();
   } catch (e) {
@@ -232,9 +242,24 @@ const matchesDateFilter = (task) => {
   return true;
 };
 
-const filteredTasks = computed(() =>
-  tasks.value.filter((t) => matchesSearch(t) && matchesDateFilter(t)),
-);
+const matchesPriority = (task) => {
+  if (priorityFilter.value === "all") return true;
+  return task.priority === priorityFilter.value;
+};
+
+const priorityWeight = { high: 3, medium: 2, low: 1 };
+
+const filteredTasks = computed(() => {
+  const list = tasks.value.filter(
+    (t) => matchesSearch(t) && matchesDateFilter(t) && matchesPriority(t),
+  );
+  return [...list].sort((a, b) => {
+    const wa = priorityWeight[a.priority] || 0;
+    const wb = priorityWeight[b.priority] || 0;
+    if (prioritySort.value === "desc") return wb - wa;
+    return wa - wb;
+  });
+});
 
 const columns = computed(() => ({
   todo: filteredTasks.value.filter((t) => t.status === "todo"),
@@ -257,6 +282,12 @@ const statusTheme = {
   },
 };
 
+const priorityTheme = {
+  high: "bg-red-100 text-red-800",
+  medium: "bg-amber-100 text-amber-800",
+  low: "bg-emerald-100 text-emerald-800",
+};
+
 const dueTone = (iso) => {
   if (!iso) return "";
   const now = Date.now();
@@ -273,9 +304,11 @@ onMounted(loadTasks);
 
 <template>
   <div
-    class="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 text-gray-900"
+    class="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 bg-[radial-gradient(circle_at_1px_1px,#e2e8f0_0.6px,transparent_0)] bg-[size:22px_22px] text-gray-900"
   >
-    <div class="mx-auto flex max-w-6xl flex-col gap-4 p-6">
+    <div
+      class="mx-auto flex max-w-[1400px] flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8"
+    >
       <header class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p class="text-sm text-gray-600">本地可用 · 自动保存 · 支持附件</p>
@@ -293,7 +326,7 @@ onMounted(loadTasks);
         class="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur"
       >
         <div class="flex flex-wrap items-center gap-3">
-          <div class="flex min-w-[240px] flex-1 items-center gap-2">
+          <div class="flex min-w-[220px] flex-1 items-center gap-2">
             <span class="text-slate-400">🔍</span>
             <input
               v-model="searchInput"
@@ -319,7 +352,7 @@ onMounted(loadTasks);
               v-model:value="dateFilterValue"
               type="date"
               clearable
-              class="w-44"
+              class="w-40"
               placeholder="选择日期"
             />
           </div>
@@ -329,6 +362,40 @@ onMounted(loadTasks);
           >
             清空筛选
           </button>
+          <button
+            class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-gray-700 shadow hover:bg-slate-50"
+            @click="showMoreFilters = !showMoreFilters"
+          >
+            {{ showMoreFilters ? "收起更多" : "更多筛选" }}
+          </button>
+        </div>
+
+        <div
+          v-if="showMoreFilters"
+          class="mt-3 grid gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:grid-cols-2"
+        >
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-600">优先级</span>
+            <select
+              v-model="priorityFilter"
+              class="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
+            >
+              <option value="all">全部</option>
+              <option value="high">高</option>
+              <option value="medium">中</option>
+              <option value="low">低</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-600">排序</span>
+            <select
+              v-model="prioritySort"
+              class="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
+            >
+              <option value="desc">高 → 低</option>
+              <option value="asc">低 → 高</option>
+            </select>
+          </div>
         </div>
       </section>
 
@@ -349,7 +416,7 @@ onMounted(loadTasks);
         加载中…
       </section>
 
-      <section v-else class="grid gap-4 lg:grid-cols-3">
+      <section v-else class="grid gap-5 lg:grid-cols-3">
         <div
           v-for="status in ['todo', 'doing', 'done']"
           :key="status"
@@ -372,14 +439,14 @@ onMounted(loadTasks);
                 >{{ columns[status].length }}</span
               >
             </div>
-            <span class="text-xs text-gray-500">保持专注，逐个完成</span>
+            <span class="text-xs text-gray-500">专注当下</span>
           </div>
 
           <div
             v-if="!columns[status].length"
             class="rounded-xl border border-dashed border-white/70 bg-white/60 px-3 py-4 text-center text-sm text-gray-600 shadow-inner"
           >
-            此列暂无任务，可切换状态或新建
+            此列暂无任务，可将任务切换到此状态或新建
           </div>
 
           <article
@@ -400,6 +467,21 @@ onMounted(loadTasks);
                         : task.status === "doing"
                           ? "进行中"
                           : "已完成"
+                    }}
+                  </span>
+                  <span
+                    class="rounded-full px-2 py-1 text-xs font-semibold"
+                    :class="
+                      priorityTheme[task.priority] ||
+                      'bg-slate-100 text-slate-700'
+                    "
+                  >
+                    {{
+                      task.priority === "high"
+                        ? "高优先级"
+                        : task.priority === "low"
+                          ? "低优先级"
+                          : "中优先级"
                     }}
                   </span>
                   <span class="text-xs text-gray-500"
@@ -558,6 +640,17 @@ onMounted(loadTasks);
               <option value="todo">待办</option>
               <option value="doing">进行中</option>
               <option value="done">已完成</option>
+            </select>
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-gray-700">优先级</span>
+            <select
+              v-model="form.priority"
+              class="rounded-lg border border-slate-200 px-3 py-2 shadow-inner focus:border-blue-400 focus:outline-none"
+            >
+              <option value="high">高</option>
+              <option value="medium">中</option>
+              <option value="low">低</option>
             </select>
           </label>
           <label class="flex flex-col gap-1">

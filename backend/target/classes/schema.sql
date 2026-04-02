@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   title TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL CHECK (status IN ('todo', 'doing', 'done')),
+  priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low','medium','high')),
   due_date TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL

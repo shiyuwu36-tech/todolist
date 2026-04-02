@@ -18,6 +18,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class TaskService {
   private static final Set<String> ALLOWED_STATUS = Set.of("todo", "doing", "done");
+  private static final Set<String> ALLOWED_PRIORITY = Set.of("low", "medium", "high");
   private final TaskDao taskDao;
   private final AttachmentDao attachmentDao;
   private final FileStorageService fileStorageService;
@@ -38,12 +39,14 @@ public class TaskService {
 
   public Task create(TaskRequest request) {
     validateStatus(request.getStatus());
+    validatePriority(request.getPriority());
     OffsetDateTime now = DateUtil.now();
     Task task = new Task();
     task.setId(UUID.randomUUID().toString());
     task.setTitle(request.getTitle());
     task.setDescription(request.getDescription());
     task.setStatus(defaultStatus(request.getStatus()));
+    task.setPriority(defaultPriority(request.getPriority()));
     task.setDueDate(parseDueDate(request.getDueDate()));
     task.setCreatedAt(now);
     task.setUpdatedAt(now);
@@ -55,9 +58,11 @@ public class TaskService {
   public Task update(String id, TaskRequest request) {
     Task existing = get(id);
     validateStatus(request.getStatus());
+    validatePriority(request.getPriority());
     existing.setTitle(request.getTitle());
     existing.setDescription(request.getDescription());
     existing.setStatus(defaultStatus(request.getStatus()));
+    existing.setPriority(defaultPriority(request.getPriority()));
     existing.setDueDate(parseDueDate(request.getDueDate()));
     existing.setUpdatedAt(DateUtil.now());
     taskDao.update(existing);
@@ -81,8 +86,21 @@ public class TaskService {
     }
   }
 
+  private static void validatePriority(String priority) {
+    if (!StringUtils.hasText(priority)) {
+      return;
+    }
+    if (!ALLOWED_PRIORITY.contains(priority)) {
+      throw new ValidationException("非法优先级", priority);
+    }
+  }
+
   private static String defaultStatus(String status) {
     return StringUtils.hasText(status) ? status : "todo";
+  }
+
+  private static String defaultPriority(String priority) {
+    return StringUtils.hasText(priority) ? priority : "medium";
   }
 
   private static OffsetDateTime parseDueDate(String value) {

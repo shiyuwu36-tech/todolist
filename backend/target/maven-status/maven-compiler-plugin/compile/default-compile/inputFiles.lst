@@ -1,6 +1,7 @@
 /home/parallels/桌面/todolist-vue/backend/src/main/java/com/example/todolist/dto/TaskRequest.java
 /home/parallels/桌面/todolist-vue/backend/src/main/java/com/example/todolist/exception/StorageException.java
 /home/parallels/桌面/todolist-vue/backend/src/main/java/com/example/todolist/exception/ApiException.java
+/home/parallels/桌面/todolist-vue/backend/src/main/java/com/example/todolist/config/SchemaMigration.java
 /home/parallels/桌面/todolist-vue/backend/src/main/java/com/example/todolist/exception/UnsupportedMediaTypeException.java
 /home/parallels/桌面/todolist-vue/backend/src/main/java/com/example/todolist/service/AttachmentService.java
 /home/parallels/桌面/todolist-vue/backend/src/main/java/com/example/todolist/model/Task.java

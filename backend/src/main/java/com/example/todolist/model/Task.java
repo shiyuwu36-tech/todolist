@@ -7,6 +7,7 @@ public class Task {
   private String title;
   private String description;
   private String status;
+  private String priority;
   private OffsetDateTime dueDate;
   private OffsetDateTime createdAt;
   private OffsetDateTime updatedAt;
@@ -42,6 +43,14 @@ public class Task {
 
   public void setStatus(String status) {
     this.status = status;
+  }
+
+  public String getPriority() {
+    return priority;
+  }
+
+  public void setPriority(String priority) {
+    this.priority = priority;
   }
 
   public OffsetDateTime getDueDate() {

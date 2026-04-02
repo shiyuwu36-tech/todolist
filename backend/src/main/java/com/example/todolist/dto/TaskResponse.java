@@ -5,6 +5,7 @@ public class TaskResponse {
   private String title;
   private String description;
   private String status;
+  private String priority;
   private String dueDate;
   private String createdAt;
   private String updatedAt;
@@ -40,6 +41,14 @@ public class TaskResponse {
 
   public void setStatus(String status) {
     this.status = status;
+  }
+
+  public String getPriority() {
+    return priority;
+  }
+
+  public void setPriority(String priority) {
+    this.priority = priority;
   }
 
   public String getDueDate() {

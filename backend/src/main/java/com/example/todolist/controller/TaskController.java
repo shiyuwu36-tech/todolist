@@ -68,6 +68,7 @@ public class TaskController {
     resp.setTitle(task.getTitle());
     resp.setDescription(task.getDescription());
     resp.setStatus(task.getStatus());
+    resp.setPriority(task.getPriority());
     resp.setDueDate(task.getDueDate() != null ? task.getDueDate().toString() : null);
     resp.setCreatedAt(task.getCreatedAt() != null ? task.getCreatedAt().toString() : null);
     resp.setUpdatedAt(task.getUpdatedAt() != null ? task.getUpdatedAt().toString() : null);

@@ -54,13 +54,14 @@ public class TaskDao {
   }
 
   public void insert(Task task) {
-    String sql = "INSERT INTO tasks (id, title, description, status, due_date, created_at, updated_at) VALUES (?,?,?,?,?,?,?)";
+    String sql = "INSERT INTO tasks (id, title, description, status, priority, due_date, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)";
     jdbcTemplate.update(
       sql,
       task.getId(),
       task.getTitle(),
       task.getDescription(),
       task.getStatus(),
+      task.getPriority(),
       toString(task.getDueDate()),
       toString(task.getCreatedAt()),
       toString(task.getUpdatedAt())
@@ -68,12 +69,13 @@ public class TaskDao {
   }
 
   public void update(Task task) {
-    String sql = "UPDATE tasks SET title=?, description=?, status=?, due_date=?, updated_at=? WHERE id=?";
+    String sql = "UPDATE tasks SET title=?, description=?, status=?, priority=?, due_date=?, updated_at=? WHERE id=?";
     jdbcTemplate.update(
       sql,
       task.getTitle(),
       task.getDescription(),
       task.getStatus(),
+      task.getPriority(),
       toString(task.getDueDate()),
       toString(task.getUpdatedAt()),
       task.getId()
@@ -96,6 +98,7 @@ public class TaskDao {
       task.setTitle(rs.getString("title"));
       task.setDescription(rs.getString("description"));
       task.setStatus(rs.getString("status"));
+      task.setPriority(rs.getString("priority"));
       String due = rs.getString("due_date");
       task.setDueDate(due != null ? OffsetDateTime.parse(due) : null);
       task.setCreatedAt(OffsetDateTime.parse(rs.getString("created_at")));
