@@ -1,0 +1,19 @@
+package com.example.todolist.controller;
+
+import java.time.OffsetDateTime;
+import java.util.HashMap;
+import java.util.Map;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class HealthController {
+
+  @GetMapping("/health")
+  public Map<String, Object> health() {
+    Map<String, Object> resp = new HashMap<>();
+    resp.put("status", "ok");
+    resp.put("timestamp", OffsetDateTime.now().toString());
+    return resp;
+  }
+}
