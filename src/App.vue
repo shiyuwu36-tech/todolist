@@ -347,6 +347,15 @@ const priorityTheme = {
   low: "bg-emerald-100 text-emerald-800",
 };
 
+const calendarPriorityTheme = {
+  high: "border-rose-400 bg-rose-100 text-rose-800 hover:bg-rose-200/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]",
+  medium:
+    "border-amber-400 bg-amber-100 text-amber-800 hover:bg-amber-200/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]",
+  low: "border-emerald-400 bg-emerald-100 text-emerald-800 hover:bg-emerald-200/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]",
+};
+
+const isCalendar = computed(() => activeTab.value === "calendar");
+
 const formattedDateFilter = computed(() => {
   if (dateFilterMode.value === "all") return "";
   if (dateFilterMode.value === "next7") return "未来7天";
@@ -616,15 +625,31 @@ onMounted(loadTasks);
       </div>
 
       <section
-        class="rounded-2xl border border-slate-200 bg-white/85 p-4 shadow-sm backdrop-blur"
+        :class="[
+          'rounded-2xl border border-slate-200 bg-white/85 shadow-sm backdrop-blur',
+          isCalendar ? 'p-3 sm:p-4' : 'p-4',
+        ]"
       >
-        <div class="relative z-20 flex flex-wrap items-center gap-3">
-          <div class="flex min-w-[240px] flex-1 items-center gap-2 text-sm">
+        <div
+          :class="[
+            'relative z-20 flex flex-wrap items-center',
+            isCalendar ? 'gap-2 text-xs' : 'gap-3 text-sm',
+          ]"
+        >
+          <div
+            :class="[
+              'flex min-w-[240px] flex-1 items-center gap-2',
+              isCalendar ? 'text-xs' : 'text-sm',
+            ]"
+          >
             <span class="text-slate-400">🔍</span>
             <input
               v-model="searchInput"
               type="search"
-              class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
+              :class="[
+                'w-full rounded-lg border border-slate-200 px-3 shadow-inner focus:border-blue-400 focus:outline-none',
+                isCalendar ? 'py-1.5 text-xs' : 'py-2 text-sm',
+              ]"
               placeholder="搜索标题或描述"
             />
           </div>
@@ -632,7 +657,10 @@ onMounted(loadTasks);
             <span class="text-xs font-medium text-gray-500">到期</span>
             <select
               v-model="dateFilterMode"
-              class="rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
+              :class="[
+                'rounded-lg border border-slate-200 px-3 shadow-inner focus:border-blue-400 focus:outline-none',
+                isCalendar ? 'py-1.5 text-xs' : 'py-2 text-sm',
+              ]"
             >
               <option value="all">全部</option>
               <option value="on">选定日期</option>
@@ -645,12 +673,16 @@ onMounted(loadTasks);
               v-model:value="dateFilterValue"
               type="date"
               clearable
-              class="w-40"
+              :size="isCalendar ? 'small' : 'medium'"
+              :class="isCalendar ? 'w-32 sm:w-36' : 'w-40'"
               placeholder="选择日期"
             />
           </div>
           <button
-            class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-gray-700 shadow hover:bg-slate-50"
+            :class="[
+              'rounded-lg border border-slate-200 font-medium text-gray-700 shadow hover:bg-slate-50',
+              isCalendar ? 'px-3 py-1.5 text-xs' : 'px-3 py-2 text-sm',
+            ]"
             @click="clearFilters"
           >
             清空筛选
@@ -666,17 +698,28 @@ onMounted(loadTasks);
           >
             <template #trigger>
               <button
-                class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-gray-700 shadow hover:bg-slate-50"
+                :class="[
+                  'rounded-lg border border-slate-200 font-medium text-gray-700 shadow hover:bg-slate-50',
+                  isCalendar ? 'px-3 py-1.5 text-xs' : 'px-3 py-2 text-sm',
+                ]"
               >
                 更多筛选
               </button>
             </template>
-            <div class="flex flex-col gap-3 text-sm">
+            <div
+              :class="[
+                'flex flex-col gap-3',
+                isCalendar ? 'text-xs' : 'text-sm',
+              ]"
+            >
               <label class="flex flex-col gap-1">
                 <span class="text-xs font-medium text-gray-600">优先级</span>
                 <select
                   v-model="priorityFilter"
-                  class="rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
+                  :class="[
+                    'rounded-lg border border-slate-200 px-3 shadow-inner focus:border-blue-400 focus:outline-none',
+                    isCalendar ? 'py-1.5 text-xs' : 'py-2 text-sm',
+                  ]"
                 >
                   <option value="all">全部</option>
                   <option value="high">高</option>
@@ -688,7 +731,10 @@ onMounted(loadTasks);
                 <span class="text-xs font-medium text-gray-600">排序</span>
                 <select
                   v-model="prioritySort"
-                  class="rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
+                  :class="[
+                    'rounded-lg border border-slate-200 px-3 shadow-inner focus:border-blue-400 focus:outline-none',
+                    isCalendar ? 'py-1.5 text-xs' : 'py-2 text-sm',
+                  ]"
                 >
                   <option value="desc">高 → 低</option>
                   <option value="asc">低 → 高</option>
@@ -714,7 +760,10 @@ onMounted(loadTasks);
 
         <div
           v-if="hasActiveChips"
-          class="mt-3 flex flex-wrap items-center gap-2 text-[12px]"
+          :class="[
+            'mt-3 flex flex-wrap items-center gap-2',
+            isCalendar ? 'text-[11px]' : 'text-[12px]',
+          ]"
         >
           <span class="text-gray-500">已应用：</span>
           <button
@@ -997,18 +1046,23 @@ onMounted(loadTasks);
 
       <section
         v-else
-        class="rounded-2xl border border-slate-200 bg-white/85 p-4 shadow-sm backdrop-blur"
+        :class="[
+          'rounded-2xl border border-slate-200 bg-white/85 shadow-sm backdrop-blur',
+          'p-3 sm:p-4',
+        ]"
       >
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p class="text-xs text-gray-500">
-              月历视图仅展示已设置截止时间的任务，当前筛选已应用。
-            </p>
-            <h2 class="text-xl font-semibold text-gray-900">
-              {{ currentMonthLabel }}
-            </h2>
+        <div class="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
+          <div class="flex flex-wrap items-center gap-3 sm:gap-4">
+            <div>
+              <p class="text-xs text-gray-500">
+                月历视图仅展示已设置截止时间的任务，当前筛选已应用。
+              </p>
+              <h2 class="text-xl font-semibold text-gray-900">
+                {{ currentMonthLabel }}
+              </h2>
+            </div>
           </div>
-          <div class="flex items-center gap-2 text-sm">
+          <div class="flex items-center gap-2 text-xs sm:text-sm">
             <button
               class="rounded-lg border border-slate-200 px-3 py-1 text-gray-700 hover:bg-slate-50"
               @click="goPrevMonth"
@@ -1025,7 +1079,7 @@ onMounted(loadTasks);
         </div>
 
         <div class="mt-4 overflow-x-auto">
-          <div class="min-w-[760px] space-y-2">
+          <div class="min-w-[760px] space-y-2 lg:space-y-3">
             <div
               class="grid grid-cols-7 gap-2 text-center text-xs font-medium text-gray-500"
             >
@@ -1037,11 +1091,13 @@ onMounted(loadTasks);
               <span>六</span>
               <span>日</span>
             </div>
-            <div class="grid grid-cols-7 gap-2 text-sm">
+            <div
+              class="grid grid-cols-7 gap-2 text-xs sm:text-sm lg:h-[calc(100vh-320px)] lg:grid-rows-6"
+            >
               <button
                 v-for="day in calendarDays"
                 :key="day.key + day.inMonth"
-                class="flex h-32 flex-col gap-1 rounded-xl border p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+                class="group flex min-h-[120px] flex-col rounded-xl border p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow lg:h-full lg:min-h-0"
                 :class="[
                   day.inMonth
                     ? 'bg-white'
@@ -1049,37 +1105,51 @@ onMounted(loadTasks);
                 ]"
                 @click="openCalendarDay(day)"
               >
-                <div class="flex items-center justify-between text-xs">
-                  <span
-                    class="font-semibold"
-                    :class="day.inMonth ? 'text-gray-800' : 'text-gray-400'"
+                <div class="flex h-full flex-col gap-2">
+                  <div
+                    class="flex items-center justify-between text-[11px] sm:text-xs"
                   >
-                    {{ day.date.getDate() }}
-                  </span>
-                  <span
-                    v-if="day.tasks.length"
-                    class="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700"
-                  >
-                    {{ day.tasks.length }} 个任务
-                  </span>
-                </div>
-                <div class="flex flex-col gap-1 text-[12px]">
-                  <template v-if="day.tasks.length">
                     <span
-                      v-for="t in day.tasks.slice(0, 2)"
-                      :key="t.id"
-                      class="truncate rounded bg-slate-100 px-2 py-1 text-gray-700"
+                      class="font-semibold"
+                      :class="day.inMonth ? 'text-gray-800' : 'text-gray-400'"
                     >
-                      {{ t.title }}
+                      {{ day.date.getDate() }}
                     </span>
                     <span
-                      v-if="day.tasks.length > 2"
-                      class="text-[11px] text-gray-500"
+                      v-if="day.tasks.length"
+                      class="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700"
                     >
-                      +{{ day.tasks.length - 2 }} 更多
+                      {{ day.tasks.length }} 个任务
                     </span>
-                  </template>
-                  <span v-else class="text-[11px] text-gray-400">暂无任务</span>
+                  </div>
+                  <div
+                    class="flex-1 overflow-y-auto pr-1 text-[11px] sm:text-[12px] max-h-24 min-h-0"
+                  >
+                    <div class="flex flex-col gap-1 py-1">
+                      <template v-if="day.tasks.length">
+                        <span
+                          v-for="t in day.tasks"
+                          :key="t.id"
+                          class="flex items-center gap-2 truncate rounded-md border-l-4 px-2 py-1 text-[12px] font-medium shadow-sm transition-colors duration-150"
+                          :class="
+                            calendarPriorityTheme[t.priority] ||
+                            'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          "
+                        >
+                          <span class="truncate">{{ t.title }}</span>
+                        </span>
+                      </template>
+                      <span v-else class="text-[11px] text-gray-400"
+                        >暂无任务</span
+                      >
+                    </div>
+                  </div>
+                  <span
+                    v-if="day.tasks.length > 2"
+                    class="inline-flex w-fit items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600"
+                  >
+                    +{{ day.tasks.length - 2 }} 更多
+                  </span>
                 </div>
               </button>
             </div>
@@ -1117,14 +1187,57 @@ onMounted(loadTasks);
           <article
             v-for="task in selectedDateTasks"
             :key="task.id"
-            class="rounded-xl border border-slate-100 bg-white p-3 text-sm shadow-sm"
+            class="rounded-xl border border-slate-100 bg-white/85 p-3 text-sm leading-relaxed shadow transition duration-200 hover:-translate-y-0.5 hover:shadow-lg backdrop-blur-sm"
           >
-            <div class="flex items-start justify-between gap-2">
-              <div class="min-w-0">
-                <h4 class="text-base font-semibold text-gray-900">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0 space-y-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span
+                    class="rounded-full px-2 py-1 text-xs font-semibold"
+                    :class="statusTheme[task.status]?.tag"
+                  >
+                    {{
+                      task.status === "todo"
+                        ? "待办"
+                        : task.status === "doing"
+                          ? "进行中"
+                          : "已完成"
+                    }}
+                  </span>
+                  <span
+                    class="rounded-full px-2 py-1 text-xs font-semibold"
+                    :class="
+                      priorityTheme[task.priority] ||
+                      'bg-slate-100 text-slate-700'
+                    "
+                  >
+                    {{
+                      task.priority === "high"
+                        ? "高优先级"
+                        : task.priority === "low"
+                          ? "低优先级"
+                          : "中优先级"
+                    }}
+                  </span>
+                  <span class="text-xs text-gray-500"
+                    >#{{ task.id.slice(0, 6) }}</span
+                  >
+                </div>
+                <h4
+                  class="break-words text-lg font-semibold leading-tight text-gray-900 md:text-xl"
+                >
                   {{ task.title }}
                 </h4>
-                <p v-if="task.description" class="text-xs text-gray-500">
+                <p
+                  v-if="task.description"
+                  class="text-[13px] leading-snug text-gray-500"
+                  style="
+                    display: -webkit-box;
+                    -webkit-line-clamp: 2;
+                    -webkit-box-orient: vertical;
+                    overflow: hidden;
+                  "
+                >
                   {{ task.description }}
                 </p>
               </div>
@@ -1139,39 +1252,67 @@ onMounted(loadTasks);
               </select>
             </div>
 
-            <div class="mt-2 flex flex-wrap gap-2 text-[12px] text-gray-500">
+            <div
+              class="mt-2 flex flex-wrap gap-2 text-[12px] font-medium text-gray-500"
+            >
               <span
                 class="flex items-center gap-1 rounded bg-slate-100 px-2 py-1"
-                >📅 {{ formatDateTime(task.dueDate) }}</span
+                ><span>📅</span
+                ><span :class="dueTone(task.dueDate)">
+                  截止：{{ formatDateTime(task.dueDate) }}</span
+                ></span
               >
               <span
                 class="flex items-center gap-1 rounded bg-slate-100 px-2 py-1"
-                >🕒 {{ formatDateTime(task.createdAt) }}</span
+                >🕒 创建：{{ formatDateTime(task.createdAt) }}</span
               >
             </div>
 
             <div class="mt-3 flex flex-wrap gap-2 text-xs">
-              <button
-                class="rounded-md bg-blue-50 px-3 py-1 font-medium text-blue-700 hover:bg-blue-100"
-                @click="openEdit(task)"
+              <div class="flex flex-wrap gap-2">
+                <button
+                  class="flex items-center gap-1 rounded-md bg-blue-50 px-3 py-1 font-medium text-blue-700 hover:bg-blue-100"
+                  @click="openEdit(task)"
+                >
+                  ✏️ 编辑
+                </button>
+                <button
+                  class="flex items-center gap-1 rounded-md bg-red-50 px-3 py-1 font-medium text-red-700 hover:bg-red-100"
+                  @click="removeTask(task)"
+                >
+                  🗑 删除
+                </button>
+              </div>
+              <div
+                class="flex flex-wrap gap-2 text-[12px] font-medium text-gray-600"
               >
-                编辑
-              </button>
-              <button
-                class="rounded-md bg-red-50 px-3 py-1 font-medium text-red-700 hover:bg-red-100"
-                @click="removeTask(task)"
-              >
-                删除
-              </button>
+                <div
+                  class="flex items-center gap-1 rounded-md bg-slate-100 px-3 py-1"
+                  aria-hidden="true"
+                >
+                  📂 附件
+                  <span class="font-semibold">{{ task.attachmentCount }}</span>
+                </div>
+                <label
+                  class="flex cursor-pointer items-center gap-1 rounded-md bg-emerald-50 px-3 py-1 font-medium text-emerald-700 hover:bg-emerald-100"
+                >
+                  ⬆️ 上传
+                  <input
+                    type="file"
+                    class="hidden"
+                    @change="(e) => handleUpload(task.id, e)"
+                  />
+                </label>
+              </div>
             </div>
 
             <div
-              class="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-2"
+              class="mt-2 rounded-lg border border-slate-100 bg-slate-50 p-2"
             >
               <div
                 class="flex items-center justify-between text-[12px] font-medium text-gray-600"
               >
-                <span>附件</span>
+                <span class="font-semibold">附件列表</span>
                 <span class="text-gray-500">
                   {{
                     attachments[task.id]?.items?.length ?? task.attachmentCount
@@ -1212,16 +1353,6 @@ onMounted(loadTasks);
                 </li>
               </ul>
               <div v-else class="mt-1 text-gray-500">暂无附件</div>
-              <label
-                class="mt-2 inline-flex cursor-pointer items-center gap-1 rounded-md bg-emerald-50 px-3 py-1 text-[12px] font-medium text-emerald-700 hover:bg-emerald-100"
-              >
-                ⬆️ 上传
-                <input
-                  type="file"
-                  class="hidden"
-                  @change="(e) => handleUpload(task.id, e)"
-                />
-              </label>
             </div>
           </article>
         </div>
