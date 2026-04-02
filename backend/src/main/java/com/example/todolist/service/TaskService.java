@@ -28,8 +28,8 @@ public class TaskService {
     this.fileStorageService = fileStorageService;
   }
 
-  public List<Task> list() {
-    return taskDao.findAll();
+  public List<Task> list(String from, String to) {
+    return taskDao.findAll(from, to);
   }
 
   public Task get(String id) {

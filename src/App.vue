@@ -26,13 +26,13 @@ const form = reactive({
   title: "",
   description: "",
   status: "todo",
-  dueDateValue: null, // timestamp(ms)
+  dueDateValue: null,
 });
 
 const searchInput = ref("");
 const searchQuery = ref("");
-const dateFilterValue = ref(null); // timestamp(ms)
-const dateFilterMode = ref("all"); // all | on | next7
+const dateFilterValue = ref(null);
+const dateFilterMode = ref("all");
 
 const allowedTypes = ["application/pdf", "text/plain"];
 let searchTimer = null;
@@ -242,32 +242,63 @@ const columns = computed(() => ({
   done: filteredTasks.value.filter((t) => t.status === "done"),
 }));
 
+const statusTheme = {
+  todo: {
+    column: "from-blue-50 to-blue-100 border-blue-100",
+    tag: "bg-blue-100 text-blue-800",
+  },
+  doing: {
+    column: "from-amber-50 to-amber-100 border-amber-100",
+    tag: "bg-amber-100 text-amber-800",
+  },
+  done: {
+    column: "from-emerald-50 to-emerald-100 border-emerald-100",
+    tag: "bg-emerald-100 text-emerald-800",
+  },
+};
+
+const dueTone = (iso) => {
+  if (!iso) return "";
+  const now = Date.now();
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return "";
+  const diff = ts - now;
+  if (diff < 0) return "text-red-600";
+  if (diff < 24 * 60 * 60 * 1000) return "text-amber-600";
+  return "text-gray-600";
+};
+
 onMounted(loadTasks);
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 text-gray-900">
+  <div
+    class="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 text-gray-900"
+  >
     <div class="mx-auto flex max-w-6xl flex-col gap-4 p-6">
       <header class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p class="text-sm text-gray-500">本地可用 · 自动保存 · 支持附件</p>
-          <h1 class="text-2xl font-semibold">任务看板 TodoList</h1>
+          <p class="text-sm text-gray-600">本地可用 · 自动保存 · 支持附件</p>
+          <h1 class="text-3xl font-bold tracking-tight">任务看板 TodoList</h1>
         </div>
         <button
-          class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          class="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700"
           @click="openCreate"
         >
           新建任务
         </button>
       </header>
 
-      <section class="rounded-lg border bg-white p-4 shadow-sm">
+      <section
+        class="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur"
+      >
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex min-w-[240px] flex-1 items-center gap-2">
+            <span class="text-slate-400">🔍</span>
             <input
               v-model="searchInput"
               type="search"
-              class="w-full rounded border px-3 py-2 text-sm"
+              class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
               placeholder="搜索标题或描述"
             />
           </div>
@@ -275,7 +306,7 @@ onMounted(loadTasks);
             <span class="text-sm text-gray-600">到期过滤</span>
             <select
               v-model="dateFilterMode"
-              class="rounded border px-3 py-2 text-sm"
+              class="rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
             >
               <option value="all">全部</option>
               <option value="on">选定日期</option>
@@ -293,7 +324,7 @@ onMounted(loadTasks);
             />
           </div>
           <button
-            class="rounded-lg border px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-gray-700 shadow hover:bg-slate-50"
             @click="clearFilters"
           >
             清空筛选
@@ -303,7 +334,7 @@ onMounted(loadTasks);
 
       <section
         v-if="errorMsg"
-        class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
       >
         <div class="flex items-center justify-between">
           <span>{{ errorMsg }}</span>
@@ -313,7 +344,7 @@ onMounted(loadTasks);
 
       <section
         v-if="loading"
-        class="rounded-lg border bg-white px-4 py-6 text-sm text-gray-500"
+        class="rounded-xl border bg-white px-4 py-6 text-sm text-gray-500 shadow"
       >
         加载中…
       </section>
@@ -322,11 +353,14 @@ onMounted(loadTasks);
         <div
           v-for="status in ['todo', 'doing', 'done']"
           :key="status"
-          class="flex flex-col gap-3 rounded-xl border bg-white p-4 shadow-sm"
+          class="flex flex-col gap-3 rounded-2xl border bg-gradient-to-b p-4 shadow-sm"
+          :class="statusTheme[status].column"
         >
-          <div class="flex items-center justify-between">
+          <div
+            class="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2 shadow-sm"
+          >
             <div class="flex items-center gap-2">
-              <span class="text-base font-semibold">{{
+              <span class="text-base font-semibold text-gray-900">{{
                 status === "todo"
                   ? "待办"
                   : status === "doing"
@@ -334,38 +368,53 @@ onMounted(loadTasks);
                     : "已完成"
               }}</span>
               <span
-                class="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600"
+                class="rounded-full bg-gray-900/5 px-2 py-1 text-xs font-semibold text-gray-700"
                 >{{ columns[status].length }}</span
               >
             </div>
+            <span class="text-xs text-gray-500">保持专注，逐个完成</span>
           </div>
+
           <div
             v-if="!columns[status].length"
-            class="rounded-lg border border-dashed bg-gray-50 px-3 py-4 text-center text-sm text-gray-500"
+            class="rounded-xl border border-dashed border-white/70 bg-white/60 px-3 py-4 text-center text-sm text-gray-600 shadow-inner"
           >
-            此列暂无任务，可将任务切换到此状态
+            此列暂无任务，可切换状态或新建
           </div>
+
           <article
             v-for="task in columns[status]"
             :key="task.id"
-            class="rounded-lg border bg-white px-3 py-3 text-sm shadow-sm"
+            class="rounded-xl border border-white/70 bg-white p-3 text-sm shadow transition duration-150 hover:-translate-y-0.5 hover:shadow-md"
           >
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0 space-y-1">
-                <h2 class="break-words text-base font-semibold text-gray-900">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span
+                    class="rounded-full px-2 py-1 text-xs font-semibold"
+                    :class="statusTheme[task.status]?.tag"
+                  >
+                    {{
+                      task.status === "todo"
+                        ? "待办"
+                        : task.status === "doing"
+                          ? "进行中"
+                          : "已完成"
+                    }}
+                  </span>
+                  <span class="text-xs text-gray-500"
+                    >#{{ task.id.slice(0, 6) }}</span
+                  >
+                </div>
+                <h2 class="break-words text-lg font-semibold text-gray-900">
                   {{ task.title }}
                 </h2>
                 <p v-if="task.description" class="text-gray-600">
                   {{ task.description }}
                 </p>
-                <div class="text-xs text-gray-500 space-y-0.5">
-                  <p>创建：{{ formatDateTime(task.createdAt) }}</p>
-                  <p>截止：{{ formatDateTime(task.dueDate) }}</p>
-                  <p>附件：{{ task.attachmentCount }}</p>
-                </div>
               </div>
               <select
-                class="rounded border px-2 py-1 text-xs"
+                class="rounded-md border border-slate-200 px-2 py-1 text-xs text-gray-700"
                 :value="task.status"
                 @change="(e) => changeStatus(task, e.target.value)"
               >
@@ -374,39 +423,66 @@ onMounted(loadTasks);
                 <option value="done">已完成</option>
               </select>
             </div>
+
+            <div class="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
+              <span
+                class="flex items-center gap-1 rounded bg-slate-100 px-2 py-1"
+                ><span>📅</span
+                ><span :class="dueTone(task.dueDate)"
+                  >截止：{{ formatDateTime(task.dueDate) }}</span
+                ></span
+              >
+              <span
+                class="flex items-center gap-1 rounded bg-slate-100 px-2 py-1"
+                >🕒 创建：{{ formatDateTime(task.createdAt) }}</span
+              >
+              <span
+                class="flex items-center gap-1 rounded bg-slate-100 px-2 py-1"
+                >📎 附件：{{ task.attachmentCount }}</span
+              >
+            </div>
+
             <div class="mt-3 flex flex-wrap gap-2 text-xs">
               <button
-                class="rounded bg-blue-50 px-3 py-1 text-blue-700"
+                class="flex items-center gap-1 rounded-md bg-blue-50 px-3 py-1 font-medium text-blue-700 hover:bg-blue-100"
                 @click="openEdit(task)"
               >
-                编辑
+                ✏️ 编辑
               </button>
               <button
-                class="rounded bg-red-50 px-3 py-1 text-red-700"
+                class="flex items-center gap-1 rounded-md bg-red-50 px-3 py-1 font-medium text-red-700 hover:bg-red-100"
                 @click="removeTask(task)"
               >
-                删除
+                🗑 删除
               </button>
               <button
-                class="rounded bg-gray-100 px-3 py-1 text-gray-700"
+                class="flex items-center gap-1 rounded-md bg-slate-100 px-3 py-1 font-medium text-gray-700 hover:bg-slate-200"
                 @click="() => ensureAttachmentsLoaded(task.id)"
               >
-                附件 ({{ task.attachmentCount }})
+                📂 附件 ({{ task.attachmentCount }})
               </button>
+              <label
+                class="flex cursor-pointer items-center gap-1 rounded-md bg-emerald-50 px-3 py-1 font-medium text-emerald-700 hover:bg-emerald-100"
+              >
+                ⬆️ 上传
+                <input
+                  type="file"
+                  class="hidden"
+                  @change="(e) => handleUpload(task.id, e)"
+                />
+              </label>
             </div>
-            <div class="mt-2 rounded border bg-gray-50 p-2">
-              <div class="flex items-center justify-between text-xs">
-                <span class="font-medium text-gray-700">附件</span>
-                <label
-                  class="cursor-pointer rounded bg-blue-50 px-2 py-1 text-blue-700"
+
+            <div
+              class="mt-2 rounded-lg border border-slate-100 bg-slate-50 p-2"
+            >
+              <div
+                class="flex items-center justify-between text-xs text-gray-700"
+              >
+                <span class="font-semibold">附件列表</span>
+                <span class="text-gray-500"
+                  >{{ attachments[task.id]?.items?.length || 0 }} 个</span
                 >
-                  上传
-                  <input
-                    type="file"
-                    class="hidden"
-                    @change="(e) => handleUpload(task.id, e)"
-                  />
-                </label>
               </div>
               <div
                 v-if="attachments[task.id]?.loading"
@@ -421,10 +497,12 @@ onMounted(loadTasks);
                 <li
                   v-for="att in attachments[task.id].items"
                   :key="att.id"
-                  class="flex items-center justify-between rounded border bg-white px-2 py-1"
+                  class="flex items-center justify-between rounded border border-slate-100 bg-white px-2 py-1"
                 >
                   <div class="flex flex-col">
-                    <span class="font-medium">{{ att.originalName }}</span>
+                    <span class="font-medium text-gray-800">{{
+                      att.originalName
+                    }}</span>
                     <span class="text-[11px] text-gray-500"
                       >{{ att.mimeType }} ·
                       {{ (att.size / 1024).toFixed(1) }} KB</span
@@ -449,7 +527,7 @@ onMounted(loadTasks);
       v-if="formVisible"
       class="fixed inset-0 z-10 flex items-center justify-center bg-black/40 px-4"
     >
-      <div class="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+      <div class="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
         <h3 class="text-lg font-semibold">
           {{ editingId ? "编辑任务" : "新建任务" }}
         </h3>
@@ -458,7 +536,7 @@ onMounted(loadTasks);
             <span class="text-gray-700">标题*</span>
             <input
               v-model="form.title"
-              class="rounded border px-3 py-2"
+              class="rounded-lg border border-slate-200 px-3 py-2 shadow-inner focus:border-blue-400 focus:outline-none"
               placeholder="请输入标题"
             />
           </label>
@@ -467,13 +545,16 @@ onMounted(loadTasks);
             <textarea
               v-model="form.description"
               rows="3"
-              class="rounded border px-3 py-2"
+              class="rounded-lg border border-slate-200 px-3 py-2 shadow-inner focus:border-blue-400 focus:outline-none"
               placeholder="补充描述"
             />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-gray-700">状态</span>
-            <select v-model="form.status" class="rounded border px-3 py-2">
+            <select
+              v-model="form.status"
+              class="rounded-lg border border-slate-200 px-3 py-2 shadow-inner focus:border-blue-400 focus:outline-none"
+            >
               <option value="todo">待办</option>
               <option value="doing">进行中</option>
               <option value="done">已完成</option>
@@ -490,11 +571,14 @@ onMounted(loadTasks);
           </label>
         </div>
         <div class="mt-6 flex justify-end gap-3 text-sm">
-          <button class="rounded px-4 py-2" @click="formVisible = false">
+          <button
+            class="rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-100"
+            @click="formVisible = false"
+          >
             取消
           </button>
           <button
-            class="rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+            class="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white shadow hover:bg-blue-700 disabled:opacity-60"
             :disabled="saving"
             @click="saveTask"
           >

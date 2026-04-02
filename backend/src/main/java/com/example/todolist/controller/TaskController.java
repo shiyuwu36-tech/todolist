@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -29,8 +30,11 @@ public class TaskController {
   }
 
   @GetMapping
-  public Map<String, Object> list() {
-    List<TaskResponse> items = taskService.list().stream().map(TaskController::toResponse).toList();
+  public Map<String, Object> list(
+    @RequestParam(name = "from", required = false) String from,
+    @RequestParam(name = "to", required = false) String to
+  ) {
+    List<TaskResponse> items = taskService.list(from, to).stream().map(TaskController::toResponse).toList();
     Map<String, Object> resp = new HashMap<>();
     resp.put("items", items);
     return resp;

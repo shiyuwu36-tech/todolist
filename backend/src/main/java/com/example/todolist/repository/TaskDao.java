@@ -4,6 +4,7 @@ import com.example.todolist.model.Task;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -21,6 +22,29 @@ public class TaskDao {
   public List<Task> findAll() {
     String sql = "SELECT t.*, (SELECT COUNT(1) FROM attachments a WHERE a.task_id = t.id) AS attachment_count FROM tasks t ORDER BY created_at DESC";
     return jdbcTemplate.query(sql, new TaskMapper());
+  }
+
+  public List<Task> findAll(String from, String to) {
+    StringBuilder sql = new StringBuilder(
+      "SELECT t.*, (SELECT COUNT(1) FROM attachments a WHERE a.task_id = t.id) AS attachment_count FROM tasks t"
+    );
+    List<Object> params = new ArrayList<>();
+
+    if (from != null && !from.isBlank()) {
+      sql.append(" WHERE t.due_date IS NOT NULL AND t.due_date >= ?");
+      params.add(from);
+    }
+
+    if (to != null && !to.isBlank()) {
+      sql.append(params.isEmpty() ? " WHERE" : " AND");
+      sql.append(" t.due_date IS NOT NULL AND t.due_date <= ?");
+      params.add(to);
+    }
+
+    sql.append(" ORDER BY created_at DESC");
+    return params.isEmpty()
+      ? findAll()
+      : jdbcTemplate.query(sql.toString(), new TaskMapper(), params.toArray());
   }
 
   public Optional<Task> findById(String id) {
