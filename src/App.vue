@@ -403,8 +403,10 @@ onMounted(loadTasks);
     >
       <header class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p class="text-sm text-gray-600">本地可用 · 自动保存 · 支持附件</p>
-          <h1 class="text-3xl font-bold tracking-tight">任务看板 TodoList</h1>
+          <p class="text-xs text-gray-500">本地可用 · 自动保存 · 支持附件</p>
+          <h1 class="text-4xl font-extrabold tracking-tight text-slate-900">
+            任务看板 TodoList
+          </h1>
         </div>
         <button
           class="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700"
@@ -418,7 +420,7 @@ onMounted(loadTasks);
         class="rounded-2xl border border-slate-200 bg-white/85 p-4 shadow-sm backdrop-blur"
       >
         <div class="relative z-20 flex flex-wrap items-center gap-3">
-          <div class="flex min-w-[240px] flex-1 items-center gap-2">
+          <div class="flex min-w-[240px] flex-1 items-center gap-2 text-sm">
             <span class="text-slate-400">🔍</span>
             <input
               v-model="searchInput"
@@ -428,7 +430,7 @@ onMounted(loadTasks);
             />
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-600">到期</span>
+            <span class="text-xs font-medium text-gray-500">到期</span>
             <select
               v-model="dateFilterMode"
               class="rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
@@ -439,7 +441,7 @@ onMounted(loadTasks);
             </select>
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-600">日期</span>
+            <span class="text-xs font-medium text-gray-500">日期</span>
             <n-date-picker
               v-model:value="dateFilterValue"
               type="date"
@@ -472,7 +474,7 @@ onMounted(loadTasks);
             </template>
             <div class="flex flex-col gap-3 text-sm">
               <label class="flex flex-col gap-1">
-                <span class="text-gray-700">优先级</span>
+                <span class="text-xs font-medium text-gray-600">优先级</span>
                 <select
                   v-model="priorityFilter"
                   class="rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
@@ -484,7 +486,7 @@ onMounted(loadTasks);
                 </select>
               </label>
               <label class="flex flex-col gap-1">
-                <span class="text-gray-700">排序</span>
+                <span class="text-xs font-medium text-gray-600">排序</span>
                 <select
                   v-model="prioritySort"
                   class="rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-blue-400 focus:outline-none"
@@ -513,7 +515,7 @@ onMounted(loadTasks);
 
         <div
           v-if="hasActiveChips"
-          class="mt-3 flex flex-wrap items-center gap-2 text-xs"
+          class="mt-3 flex flex-wrap items-center gap-2 text-[12px]"
         >
           <span class="text-gray-500">已应用：</span>
           <button
@@ -575,7 +577,7 @@ onMounted(loadTasks);
             class="sticky top-0 z-10 flex items-center justify-between rounded-xl bg-white/85 px-3 py-2 shadow-sm ring-1 ring-white/50 backdrop-blur"
           >
             <div class="flex items-center gap-2">
-              <span class="text-base font-semibold text-gray-900">{{
+              <span class="text-lg font-semibold text-gray-900">{{
                 status === "todo"
                   ? "待办"
                   : status === "doing"
@@ -583,11 +585,11 @@ onMounted(loadTasks);
                     : "已完成"
               }}</span>
               <span
-                class="rounded-full bg-gray-900/5 px-2 py-1 text-xs font-semibold text-gray-700"
+                class="rounded-full bg-gray-900/5 px-2 py-1 text-[11px] font-semibold text-gray-700"
                 >{{ columns[status].length }}</span
               >
             </div>
-            <span class="text-xs text-gray-500">保持节奏</span>
+            <span class="text-[11px] text-gray-500">保持节奏</span>
           </div>
 
           <div
@@ -604,7 +606,7 @@ onMounted(loadTasks);
             <article
               v-for="task in columns[status]"
               :key="task.id"
-              class="rounded-xl border border-slate-100 bg-white/85 p-3 text-sm shadow transition duration-200 hover:-translate-y-0.5 hover:shadow-lg backdrop-blur-sm"
+              class="rounded-xl border border-slate-100 bg-white/85 p-3 text-sm leading-relaxed shadow transition duration-200 hover:-translate-y-0.5 hover:shadow-lg backdrop-blur-sm"
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0 space-y-1">
@@ -640,12 +642,14 @@ onMounted(loadTasks);
                       >#{{ task.id.slice(0, 6) }}</span
                     >
                   </div>
-                  <h2 class="break-words text-lg font-semibold text-gray-900">
+                  <h2
+                    class="break-words text-lg font-semibold leading-tight text-gray-900 md:text-xl"
+                  >
                     {{ task.title }}
                   </h2>
                   <p
                     v-if="task.description"
-                    class="text-gray-600"
+                    class="text-[13px] leading-snug text-gray-500"
                     style="
                       display: -webkit-box;
                       -webkit-line-clamp: 2;
@@ -667,7 +671,9 @@ onMounted(loadTasks);
                 </select>
               </div>
 
-              <div class="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
+              <div
+                class="mt-2 flex flex-wrap gap-2 text-[12px] font-medium text-gray-500"
+              >
                 <span
                   class="flex items-center gap-1 rounded bg-slate-100 px-2 py-1"
                   ><span>📅</span
@@ -696,9 +702,11 @@ onMounted(loadTasks);
                     🗑 删除
                   </button>
                 </div>
-                <div class="flex flex-wrap gap-2">
+                <div
+                  class="flex flex-wrap gap-2 text-[12px] font-medium text-gray-600"
+                >
                   <div
-                    class="flex items-center gap-1 rounded-md bg-slate-100 px-3 py-1 font-medium text-gray-700"
+                    class="flex items-center gap-1 rounded-md bg-slate-100 px-3 py-1"
                     aria-hidden="true"
                   >
                     📂 附件
@@ -723,7 +731,7 @@ onMounted(loadTasks);
                 class="mt-2 rounded-lg border border-slate-100 bg-slate-50 p-2"
               >
                 <div
-                  class="flex items-center justify-between text-xs text-gray-700"
+                  class="flex items-center justify-between text-[12px] font-medium text-gray-600"
                 >
                   <span class="font-semibold">附件列表</span>
                   <span class="text-gray-500">
