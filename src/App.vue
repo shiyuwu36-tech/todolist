@@ -38,6 +38,17 @@ const priorityFilter = ref("all");
 const prioritySort = ref("desc"); // 默认高->低
 const moreFiltersOpen = ref(false);
 
+const activeTab = ref("board");
+
+const draggingTaskId = ref(null);
+const dragOriginStatus = ref(null);
+const dragOverStatus = ref(null);
+
+const calendarMonth = ref(new Date());
+const calendarDrawerOpen = ref(false);
+const selectedDate = ref(null);
+const selectedDateTasks = ref([]);
+
 const allowedTypes = ["application/pdf", "text/plain"];
 let searchTimer = null;
 
@@ -370,6 +381,160 @@ const dueTone = (iso) => {
   return "text-gray-600";
 };
 
+const toDayKey = (input) => {
+  if (!input) return null;
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+const calendarTasks = computed(() =>
+  filteredTasks.value.filter((t) => Boolean(t.dueDate)),
+);
+
+const tasksByDay = computed(() => {
+  const map = new Map();
+  calendarTasks.value.forEach((t) => {
+    const key = toDayKey(t.dueDate);
+    if (!key) return;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(t);
+  });
+  return map;
+});
+
+const currentMonthLabel = computed(() => {
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "long",
+  });
+  return formatter.format(new Date(calendarMonth.value));
+});
+
+const selectedDateLabel = computed(() => {
+  if (!selectedDate.value) return "";
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(selectedDate.value);
+});
+
+const calendarDays = computed(() => {
+  const first = new Date(calendarMonth.value);
+  first.setDate(1);
+  const startOffset = (first.getDay() + 6) % 7; // 周一为起点
+  const start = new Date(first);
+  start.setDate(first.getDate() - startOffset);
+
+  const days = [];
+  for (let i = 0; i < 42; i += 1) {
+    const current = new Date(start);
+    current.setDate(start.getDate() + i);
+    const key = toDayKey(current);
+    const inMonth = current.getMonth() === first.getMonth();
+    const dayTasks = tasksByDay.value.get(key) || [];
+    days.push({ date: current, key, inMonth, tasks: dayTasks });
+  }
+  return days;
+});
+
+const goPrevMonth = () => {
+  const d = new Date(calendarMonth.value);
+  d.setMonth(d.getMonth() - 1);
+  calendarMonth.value = d;
+};
+
+const goNextMonth = () => {
+  const d = new Date(calendarMonth.value);
+  d.setMonth(d.getMonth() + 1);
+  calendarMonth.value = d;
+};
+
+const openCalendarDay = async (day) => {
+  selectedDate.value = day.date;
+  selectedDateTasks.value = day.tasks;
+  calendarDrawerOpen.value = true;
+  const tasksNeedAtt = day.tasks.filter((t) => t.attachmentCount > 0);
+  for (const t of tasksNeedAtt) {
+    await ensureAttachmentsLoaded(t.id);
+  }
+};
+
+const closeCalendarDrawer = () => {
+  calendarDrawerOpen.value = false;
+  selectedDate.value = null;
+  selectedDateTasks.value = [];
+};
+
+const moveTaskLocal = (taskId, status) => {
+  tasks.value = tasks.value.map((t) =>
+    t.id === taskId
+      ? {
+          ...t,
+          status,
+        }
+      : t,
+  );
+};
+
+const handleDragStart = (event, task) => {
+  draggingTaskId.value = task.id;
+  dragOriginStatus.value = task.status;
+  dragOverStatus.value = null;
+  event.dataTransfer?.setData("text/plain", task.id);
+};
+
+const handleDragOver = (status) => {
+  if (draggingTaskId.value) {
+    dragOverStatus.value = status;
+  }
+};
+
+const handleDragLeave = () => {
+  dragOverStatus.value = null;
+};
+
+const handleDrop = async (status) => {
+  const taskId = draggingTaskId.value;
+  const originStatus = dragOriginStatus.value;
+  dragOverStatus.value = null;
+  if (!taskId) return;
+  const task = tasks.value.find((t) => t.id === taskId);
+  if (!task) {
+    draggingTaskId.value = null;
+    return;
+  }
+  if (task.status === status) {
+    draggingTaskId.value = null;
+    dragOriginStatus.value = null;
+    return;
+  }
+
+  moveTaskLocal(taskId, status);
+  try {
+    await updateTask(taskId, { ...task, status, priority: task.priority });
+    await loadTasks();
+    message.success("状态已更新");
+  } catch (e) {
+    moveTaskLocal(taskId, originStatus || task.status);
+    await loadTasks();
+    message.error(e.message || "拖拽更新失败");
+  } finally {
+    draggingTaskId.value = null;
+    dragOriginStatus.value = null;
+  }
+};
+
+const handleDragEnd = () => {
+  draggingTaskId.value = null;
+  dragOriginStatus.value = null;
+  dragOverStatus.value = null;
+};
+
 watch(
   () => filteredTasks.value,
   async (list) => {
@@ -377,6 +542,12 @@ watch(
   },
   { immediate: true },
 );
+
+watch([tasks, selectedDate], () => {
+  if (!selectedDate.value) return;
+  const key = toDayKey(selectedDate.value);
+  selectedDateTasks.value = tasksByDay.value.get(key) || [];
+});
 
 onMounted(loadTasks);
 </script>
@@ -415,6 +586,34 @@ onMounted(loadTasks);
           新建任务
         </button>
       </header>
+
+      <div class="flex items-center gap-2 text-sm">
+        <button
+          class="rounded-lg px-3 py-2 font-semibold shadow-sm"
+          :class="
+            activeTab === 'board'
+              ? 'bg-blue-600 text-white shadow'
+              : 'bg-white text-gray-700 border border-slate-200'
+          "
+          @click="activeTab = 'board'"
+        >
+          看板
+        </button>
+        <button
+          class="rounded-lg px-3 py-2 font-semibold shadow-sm"
+          :class="
+            activeTab === 'calendar'
+              ? 'bg-blue-600 text-white shadow'
+              : 'bg-white text-gray-700 border border-slate-200'
+          "
+          @click="activeTab = 'calendar'"
+        >
+          月历
+        </button>
+        <span class="text-xs text-gray-500">
+          未设置截止时间的任务仅在看板显示；筛选条件在看板内保持。
+        </span>
+      </div>
 
       <section
         class="rounded-2xl border border-slate-200 bg-white/85 p-4 shadow-sm backdrop-blur"
@@ -566,12 +765,21 @@ onMounted(loadTasks);
         加载中…
       </section>
 
-      <section v-else class="grid gap-5 lg:grid-cols-3">
+      <section
+        v-else-if="activeTab === 'board'"
+        class="grid gap-5 lg:grid-cols-3"
+      >
         <div
           v-for="status in ['todo', 'doing', 'done']"
           :key="status"
           class="relative flex flex-col gap-3 rounded-2xl border border-black/5 p-4 shadow-sm min-h-[520px] lg:max-h-[calc(100vh-240px)] lg:overflow-hidden"
-          :class="statusTheme[status].column"
+          :class="[
+            statusTheme[status].column,
+            dragOverStatus === status ? 'ring-2 ring-blue-300' : '',
+          ]"
+          @dragover.prevent="handleDragOver(status)"
+          @dragleave="handleDragLeave"
+          @drop.prevent="handleDrop(status)"
         >
           <div
             class="sticky top-0 z-10 flex items-center justify-between rounded-xl bg-white/85 px-3 py-2 shadow-sm ring-1 ring-white/50 backdrop-blur"
@@ -607,6 +815,12 @@ onMounted(loadTasks);
               v-for="task in columns[status]"
               :key="task.id"
               class="rounded-xl border border-slate-100 bg-white/85 p-3 text-sm leading-relaxed shadow transition duration-200 hover:-translate-y-0.5 hover:shadow-lg backdrop-blur-sm"
+              :class="{
+                'opacity-80 ring-1 ring-blue-300': draggingTaskId === task.id,
+              }"
+              draggable="true"
+              @dragstart="(e) => handleDragStart(e, task)"
+              @dragend="handleDragEnd"
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0 space-y-1">
@@ -780,6 +994,238 @@ onMounted(loadTasks);
           </div>
         </div>
       </section>
+
+      <section
+        v-else
+        class="rounded-2xl border border-slate-200 bg-white/85 p-4 shadow-sm backdrop-blur"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="text-xs text-gray-500">
+              月历视图仅展示已设置截止时间的任务，当前筛选已应用。
+            </p>
+            <h2 class="text-xl font-semibold text-gray-900">
+              {{ currentMonthLabel }}
+            </h2>
+          </div>
+          <div class="flex items-center gap-2 text-sm">
+            <button
+              class="rounded-lg border border-slate-200 px-3 py-1 text-gray-700 hover:bg-slate-50"
+              @click="goPrevMonth"
+            >
+              上一月
+            </button>
+            <button
+              class="rounded-lg border border-slate-200 px-3 py-1 text-gray-700 hover:bg-slate-50"
+              @click="goNextMonth"
+            >
+              下一月
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-4 overflow-x-auto">
+          <div class="min-w-[760px] space-y-2">
+            <div
+              class="grid grid-cols-7 gap-2 text-center text-xs font-medium text-gray-500"
+            >
+              <span>一</span>
+              <span>二</span>
+              <span>三</span>
+              <span>四</span>
+              <span>五</span>
+              <span>六</span>
+              <span>日</span>
+            </div>
+            <div class="grid grid-cols-7 gap-2 text-sm">
+              <button
+                v-for="day in calendarDays"
+                :key="day.key + day.inMonth"
+                class="flex h-32 flex-col gap-1 rounded-xl border p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+                :class="[
+                  day.inMonth
+                    ? 'bg-white'
+                    : 'bg-slate-50 text-gray-400 border-dashed',
+                ]"
+                @click="openCalendarDay(day)"
+              >
+                <div class="flex items-center justify-between text-xs">
+                  <span
+                    class="font-semibold"
+                    :class="day.inMonth ? 'text-gray-800' : 'text-gray-400'"
+                  >
+                    {{ day.date.getDate() }}
+                  </span>
+                  <span
+                    v-if="day.tasks.length"
+                    class="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700"
+                  >
+                    {{ day.tasks.length }} 个任务
+                  </span>
+                </div>
+                <div class="flex flex-col gap-1 text-[12px]">
+                  <template v-if="day.tasks.length">
+                    <span
+                      v-for="t in day.tasks.slice(0, 2)"
+                      :key="t.id"
+                      class="truncate rounded bg-slate-100 px-2 py-1 text-gray-700"
+                    >
+                      {{ t.title }}
+                    </span>
+                    <span
+                      v-if="day.tasks.length > 2"
+                      class="text-[11px] text-gray-500"
+                    >
+                      +{{ day.tasks.length - 2 }} 更多
+                    </span>
+                  </template>
+                  <span v-else class="text-[11px] text-gray-400">暂无任务</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div
+      v-if="calendarDrawerOpen"
+      class="fixed inset-0 z-10 flex justify-end bg-black/30"
+    >
+      <div
+        class="h-full w-full max-w-xl overflow-y-auto rounded-l-2xl bg-white p-4 shadow-2xl"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs text-gray-500">当天任务列表</p>
+            <h3 class="text-lg font-semibold text-gray-900">
+              {{ selectedDateLabel || "" }}
+            </h3>
+          </div>
+          <button class="text-sm text-gray-600" @click="closeCalendarDrawer">
+            关闭
+          </button>
+        </div>
+
+        <div class="mt-4 space-y-3">
+          <div
+            v-if="!selectedDateTasks.length"
+            class="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-sm text-gray-500"
+          >
+            当天暂无任务。
+          </div>
+          <article
+            v-for="task in selectedDateTasks"
+            :key="task.id"
+            class="rounded-xl border border-slate-100 bg-white p-3 text-sm shadow-sm"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <h4 class="text-base font-semibold text-gray-900">
+                  {{ task.title }}
+                </h4>
+                <p v-if="task.description" class="text-xs text-gray-500">
+                  {{ task.description }}
+                </p>
+              </div>
+              <select
+                class="rounded-md border border-slate-200 px-2 py-1 text-xs text-gray-700"
+                :value="task.status"
+                @change="(e) => changeStatus(task, e.target.value)"
+              >
+                <option value="todo">待办</option>
+                <option value="doing">进行中</option>
+                <option value="done">已完成</option>
+              </select>
+            </div>
+
+            <div class="mt-2 flex flex-wrap gap-2 text-[12px] text-gray-500">
+              <span
+                class="flex items-center gap-1 rounded bg-slate-100 px-2 py-1"
+                >📅 {{ formatDateTime(task.dueDate) }}</span
+              >
+              <span
+                class="flex items-center gap-1 rounded bg-slate-100 px-2 py-1"
+                >🕒 {{ formatDateTime(task.createdAt) }}</span
+              >
+            </div>
+
+            <div class="mt-3 flex flex-wrap gap-2 text-xs">
+              <button
+                class="rounded-md bg-blue-50 px-3 py-1 font-medium text-blue-700 hover:bg-blue-100"
+                @click="openEdit(task)"
+              >
+                编辑
+              </button>
+              <button
+                class="rounded-md bg-red-50 px-3 py-1 font-medium text-red-700 hover:bg-red-100"
+                @click="removeTask(task)"
+              >
+                删除
+              </button>
+            </div>
+
+            <div
+              class="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-2"
+            >
+              <div
+                class="flex items-center justify-between text-[12px] font-medium text-gray-600"
+              >
+                <span>附件</span>
+                <span class="text-gray-500">
+                  {{
+                    attachments[task.id]?.items?.length ?? task.attachmentCount
+                  }}
+                  个
+                </span>
+              </div>
+              <div
+                v-if="attachments[task.id]?.loading"
+                class="mt-1 text-gray-500"
+              >
+                附件加载中…
+              </div>
+              <ul
+                v-else-if="attachments[task.id]?.items?.length"
+                class="mt-2 flex flex-col gap-1"
+              >
+                <li
+                  v-for="att in attachments[task.id].items"
+                  :key="att.id"
+                  class="flex items-center justify-between rounded border border-slate-100 bg-white px-2 py-1"
+                >
+                  <div class="flex flex-col">
+                    <span class="font-medium text-gray-800">{{
+                      att.originalName
+                    }}</span>
+                    <span class="text-[11px] text-gray-500"
+                      >{{ att.mimeType }} ·
+                      {{ (att.size / 1024).toFixed(1) }} KB</span
+                    >
+                  </div>
+                  <button
+                    class="text-blue-600"
+                    @click="() => handleDownload(att)"
+                  >
+                    下载
+                  </button>
+                </li>
+              </ul>
+              <div v-else class="mt-1 text-gray-500">暂无附件</div>
+              <label
+                class="mt-2 inline-flex cursor-pointer items-center gap-1 rounded-md bg-emerald-50 px-3 py-1 text-[12px] font-medium text-emerald-700 hover:bg-emerald-100"
+              >
+                ⬆️ 上传
+                <input
+                  type="file"
+                  class="hidden"
+                  @change="(e) => handleUpload(task.id, e)"
+                />
+              </label>
+            </div>
+          </article>
+        </div>
+      </div>
     </div>
 
     <div
