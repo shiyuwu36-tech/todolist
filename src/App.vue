@@ -269,15 +269,16 @@ const columns = computed(() => ({
 
 const statusTheme = {
   todo: {
-    column: "from-blue-50 to-blue-100 border-blue-100",
-    tag: "bg-blue-100 text-blue-800",
+    column: "bg-gradient-to-b from-sky-100 to-sky-50 border-sky-200",
+    tag: "bg-sky-100 text-sky-800",
   },
   doing: {
-    column: "from-amber-50 to-amber-100 border-amber-100",
+    column: "bg-gradient-to-b from-amber-100 to-amber-50 border-amber-200",
     tag: "bg-amber-100 text-amber-800",
   },
   done: {
-    column: "from-emerald-50 to-emerald-100 border-emerald-100",
+    column:
+      "bg-gradient-to-b from-emerald-100 to-emerald-50 border-emerald-200",
     tag: "bg-emerald-100 text-emerald-800",
   },
 };
@@ -304,7 +305,20 @@ onMounted(loadTasks);
 
 <template>
   <div
-    class="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 bg-[radial-gradient(circle_at_1px_1px,#e2e8f0_0.6px,transparent_0)] bg-[size:22px_22px] text-gray-900"
+    class="min-h-screen bg-gradient-to-br from-slate-100 via-sky-100 to-indigo-100 text-gray-900"
+    style="
+      background-image:
+        radial-gradient(
+          720px at 16% 20%,
+          rgba(56, 189, 248, 0.16),
+          transparent 58%
+        ),
+        radial-gradient(
+          640px at 78% 78%,
+          rgba(16, 185, 129, 0.14),
+          transparent 60%
+        );
+    "
   >
     <div
       class="mx-auto flex max-w-[1400px] flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8"
@@ -323,7 +337,7 @@ onMounted(loadTasks);
       </header>
 
       <section
-        class="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur"
+        class="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur"
       >
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex min-w-[220px] flex-1 items-center gap-2">
@@ -420,11 +434,11 @@ onMounted(loadTasks);
         <div
           v-for="status in ['todo', 'doing', 'done']"
           :key="status"
-          class="flex flex-col gap-3 rounded-2xl border bg-gradient-to-b p-4 shadow-sm"
+          class="flex flex-col gap-3 rounded-2xl border border-black/5 p-4 shadow-sm min-h-[520px]"
           :class="statusTheme[status].column"
         >
           <div
-            class="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2 shadow-sm"
+            class="flex items-center justify-between rounded-xl bg-white/85 px-3 py-2 shadow-sm ring-1 ring-white/50"
           >
             <div class="flex items-center gap-2">
               <span class="text-base font-semibold text-gray-900">{{
@@ -439,12 +453,12 @@ onMounted(loadTasks);
                 >{{ columns[status].length }}</span
               >
             </div>
-            <span class="text-xs text-gray-500">专注当下</span>
+            <span class="text-xs text-gray-500">保持节奏</span>
           </div>
 
           <div
             v-if="!columns[status].length"
-            class="rounded-xl border border-dashed border-white/70 bg-white/60 px-3 py-4 text-center text-sm text-gray-600 shadow-inner"
+            class="rounded-xl border border-dashed border-slate-200 bg-white/70 px-3 py-4 text-center text-sm text-gray-600 shadow-inner"
           >
             此列暂无任务，可将任务切换到此状态或新建
           </div>
@@ -452,7 +466,7 @@ onMounted(loadTasks);
           <article
             v-for="task in columns[status]"
             :key="task.id"
-            class="rounded-xl border border-white/70 bg-white p-3 text-sm shadow transition duration-150 hover:-translate-y-0.5 hover:shadow-md"
+            class="rounded-xl border border-slate-100 bg-white/85 p-3 text-sm shadow transition duration-150 hover:-translate-y-0.5 hover:shadow-md backdrop-blur-sm"
           >
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0 space-y-1">
@@ -518,41 +532,41 @@ onMounted(loadTasks);
                 class="flex items-center gap-1 rounded bg-slate-100 px-2 py-1"
                 >🕒 创建：{{ formatDateTime(task.createdAt) }}</span
               >
-              <span
-                class="flex items-center gap-1 rounded bg-slate-100 px-2 py-1"
-                >📎 附件：{{ task.attachmentCount }}</span
-              >
             </div>
 
             <div class="mt-3 flex flex-wrap gap-2 text-xs">
-              <button
-                class="flex items-center gap-1 rounded-md bg-blue-50 px-3 py-1 font-medium text-blue-700 hover:bg-blue-100"
-                @click="openEdit(task)"
-              >
-                ✏️ 编辑
-              </button>
-              <button
-                class="flex items-center gap-1 rounded-md bg-red-50 px-3 py-1 font-medium text-red-700 hover:bg-red-100"
-                @click="removeTask(task)"
-              >
-                🗑 删除
-              </button>
-              <button
-                class="flex items-center gap-1 rounded-md bg-slate-100 px-3 py-1 font-medium text-gray-700 hover:bg-slate-200"
-                @click="() => ensureAttachmentsLoaded(task.id)"
-              >
-                📂 附件 ({{ task.attachmentCount }})
-              </button>
-              <label
-                class="flex cursor-pointer items-center gap-1 rounded-md bg-emerald-50 px-3 py-1 font-medium text-emerald-700 hover:bg-emerald-100"
-              >
-                ⬆️ 上传
-                <input
-                  type="file"
-                  class="hidden"
-                  @change="(e) => handleUpload(task.id, e)"
-                />
-              </label>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  class="flex items-center gap-1 rounded-md bg-blue-50 px-3 py-1 font-medium text-blue-700 hover:bg-blue-100"
+                  @click="openEdit(task)"
+                >
+                  ✏️ 编辑
+                </button>
+                <button
+                  class="flex items-center gap-1 rounded-md bg-red-50 px-3 py-1 font-medium text-red-700 hover:bg-red-100"
+                  @click="removeTask(task)"
+                >
+                  🗑 删除
+                </button>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  class="flex items-center gap-1 rounded-md bg-slate-100 px-3 py-1 font-medium text-gray-700 hover:bg-slate-200"
+                  @click="() => ensureAttachmentsLoaded(task.id)"
+                >
+                  📂 附件 ({{ task.attachmentCount }})
+                </button>
+                <label
+                  class="flex cursor-pointer items-center gap-1 rounded-md bg-emerald-50 px-3 py-1 font-medium text-emerald-700 hover:bg-emerald-100"
+                >
+                  ⬆️ 上传
+                  <input
+                    type="file"
+                    class="hidden"
+                    @change="(e) => handleUpload(task.id, e)"
+                  />
+                </label>
+              </div>
             </div>
 
             <div
